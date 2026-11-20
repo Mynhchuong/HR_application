@@ -45,6 +45,8 @@ public class BulletinShareController : BaseController
     // ── AJAX ──
     [HttpGet] public async Task<IActionResult> Data(int id) => J(await _svc.GetAsync(id.ToString(), "loginUser=" + Uri.EscapeDataString(Me)));
     [HttpGet] public async Task<IActionResult> EmailPreview(int id) => J(await _svc.GetAsync(id + "/email-preview", "loginUser=" + Uri.EscapeDataString(Me)));
+    [HttpGet] public async Task<IActionResult> History(int id, string? channel) =>
+        J(await _svc.GetAsync(id + "/history", "channel=" + Uri.EscapeDataString(channel ?? "EMAIL") + "&loginUser=" + Uri.EscapeDataString(Me)));
     [HttpGet] public async Task<IActionResult> Status(string? ids) => J(await _svc.GetAsync("status", "ids=" + Uri.EscapeDataString(ids ?? "")));
 
     public class SaveVm

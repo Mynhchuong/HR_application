@@ -31,6 +31,27 @@
         { 6, monday.AddDays(4).ToString("yyyyMMdd") },
         { 7, monday.AddDays(5).ToString("yyyyMMdd") },
     };
+    // Đồng bộ giao diện với Menu/Today (2026-11-20): cùng màu nhãn món, cùng nút chọn ca, cùng lưới món ảnh to
+    var mealColors = new Dictionary<string,(string bg, string fg)>
+    {
+        { "MAN", ("#FEF3C7","#92400E") }, { "DU_KIEN", ("#DBEAFE","#1E40AF") }, { "NHE", ("#D1FAE5","#065F46") },
+        { "CHAY", ("#F0FDF4","#166534") }, { "BANH", ("#FEF9C3","#78350F") },
+    };
+    var mealIcons = new Dictionary<string,string>
+    {
+        { "MAN","meal-main" }, { "DU_KIEN","survey" }, { "NHE","meal-light" }, { "CHAY","meal-veg" }, { "BANH","meal-bread" }
+    };
+    var shiftUi = new[]
+    {
+        (Key: "CA1", Short: "Ca 1 · Trưa",    Icon: "shift-morning",   Color: "#2563eb", Desc: "Áp dụng cho mọi ca hành chính, ca 1 & ca hành chính"),
+        (Key: "CA2", Short: "Ca 2 · Tăng ca", Icon: "shift-afternoon", Color: "#16a34a", Desc: "Chỉ áp dụng nếu có đăng ký tăng ca & ca 2"),
+        (Key: "CA3", Short: "Ca 3 · Đêm",     Icon: "shift-night",     Color: "#d97706", Desc: "Phục vụ nhân viên ca 3 / ca đêm"),
+    };
+    // Ảnh món cache theo NGÀY (trước đây &v=giây → tải lại ảnh mỗi lần mở trang)
+    var imgVer = today.ToString("yyyyMMdd");
+    string? FoodImg(int? id, string? isImg) => isImg == "Y" && id.HasValue
+        ? Url.Action("GetFoodImage", "Image", new { fileName = id + ".jpg" }) + "&v=" + imgVer : null;
+    var banhFixed = (ViewBag.BanhFixed as List<HR_web.Models.Menu.MenuBanhFixedSlot> ?? new()).Where(b => b.FoodId.HasValue).ToList();
     var userWeekMeals = ViewBag.UserWeekMeals as Dictionary<string, string> ?? new Dictionary<string, string>();
     var mealBadge = new Dictionary<string, (string label, string bg, string fg)>
     {
@@ -42,251 +63,127 @@
 }
 
 <style>
-    :root {
-        --fr:  #c00000;
-        --frd: #8b0000;
-        --fbg: #fff8f8;
-        --fbo: #fde8e8;
-    }
+    /* ═══ Thực đơn cả tuần — đồng bộ với Menu/Today (2026-11-20) ═══ */
+    .tp { max-width: 720px; margin: 0 auto; padding-bottom: 1rem; }
+    .tp-top { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: .25rem 0 .75rem; }
+    .tp-date b { display: block; font-size: 1.25rem; font-weight: 900; color: #0f172a; line-height: 1.2; }
+    .tp-date span { font-size: .8rem; color: #64748b; font-weight: 600; }
+    .tp-tabs { display: flex; background: #f1f5f9; border-radius: 12px; padding: 3px; gap: 3px; flex-shrink: 0; }
+    .tp-tab { padding: 7px 14px; border-radius: 9px; font-size: .85rem; font-weight: 800; color: #64748b; text-decoration: none !important; }
+    .tp-tab.active { background: #fff; color: #dc2626; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
 
-    .menu-page { max-width: 680px; margin: 0 auto; padding-bottom: 5rem; }
+    .tp-note { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 12px; padding: .55rem .8rem; margin-bottom: .75rem; font-size: .82rem; font-weight: 700; }
+    .tp-next { display: flex; align-items: center; gap: .5rem; background: #fff7ed; border: 1.5px dashed #fb923c; border-radius: 14px;
+               padding: .65rem .85rem; margin-bottom: .75rem; text-decoration: none !important; color: #c2410c; font-weight: 800; font-size: .88rem; }
+    .tp-next span:last-child { margin-left: auto; font-size: 1.2rem; }
+    .tp-weeknav { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; font-weight: 800; color: #dc2626 !important; text-decoration: none !important; margin-bottom: .6rem; }
 
-    /* ── Hero ── */
-    .food-hero {
-        background: linear-gradient(135deg, var(--frd) 0%, var(--fr) 100%);
-        border-radius: 18px; padding: 1rem 1.25rem; margin-bottom: .75rem;
-        color: #fff; display: flex; align-items: center; justify-content: space-between;
-    }
-    .food-hero h5    { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; color: #fff !important; }
-    .food-hero small { font-size: .75rem; opacity: .85; color: #fff !important; }
-    .food-hero-icon  { font-size: 2.4rem; line-height: 1; }
+    /* Thanh chọn ngày */
+    .tw-days { display: flex; gap: .4rem; overflow-x: auto; scrollbar-width: none; margin-bottom: .65rem; padding: 2px; }
+    .tw-days::-webkit-scrollbar { display: none; }
+    .tw-day { flex: 1 0 auto; min-width: 66px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+              background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: .45rem .35rem; cursor: pointer;
+              -webkit-tap-highlight-color: transparent; position: relative; }
+    .tw-day b { font-size: .85rem; font-weight: 900; color: #0f172a; }
+    .tw-day small { font-size: .7rem; color: #94a3b8; font-weight: 700; }
+    .tw-day .chip { font-size: .6rem; font-weight: 800; padding: 1px 6px; border-radius: 6px; }
+    .tw-day.today b::after { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #dc2626; margin-left: 4px; vertical-align: 2px; }
+    .tw-day.active { background: #dc2626; border-color: #dc2626; box-shadow: 0 4px 12px rgba(220,38,38,.25); }
+    .tw-day.active b, .tw-day.active small { color: #fff; }
+    .tw-day.off { opacity: .45; }
+    .tw-day .lk { position: absolute; top: -6px; right: -4px; }
+    .tw-day .lk .ic3d { width: 1.1em; height: 1.1em; }
 
-    /* ── Tab toggle (Hôm nay / Cả tuần) ── */
-    .food-tabs {
-        display: flex; background: #f1f5f9; border-radius: 12px;
-        padding: 4px; margin-bottom: .75rem; gap: 3px;
-        touch-action: manipulation;
-    }
-    .food-tab {
-        flex: 1; text-align: center; min-height: 44px;
-        display: flex; align-items: center; justify-content: center;
-        border-radius: 9px; font-size: .88rem; font-weight: 700;
-        text-decoration: none !important; color: #64748b;
-        transition: background .15s, color .15s, box-shadow .15s;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none; cursor: pointer;
-    }
-    .food-tab.active { background: white; color: var(--fr); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
-    .food-tab:active { opacity: .75; }
+    .tw-mine { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .75rem; border-radius: 999px; font-size: .8rem; font-weight: 800; margin-bottom: .6rem; }
+    .tw-mine .ic3d { width: 1.2em; height: 1.2em; }
+    .tw-lock { border-radius: 10px; padding: .5rem .7rem; font-size: .8rem; font-weight: 700; line-height: 1.45; margin-bottom: .6rem; }
+    .tw-lock .ic3d { width: 1.2em; height: 1.2em; }
 
-    /* ── Day tabs ── */
-    .day-tabs {
-        display: flex; overflow-x: auto; background: white;
-        border-radius: 14px; border: 1.5px solid #f0f0f0;
-        box-shadow: 0 2px 6px rgba(0,0,0,.05);
-        margin-bottom: .75rem; scrollbar-width: none;
-        touch-action: pan-x;
-    }
-    .day-tabs::-webkit-scrollbar { display: none; }
-    .day-tab {
-        flex-shrink: 0; min-height: 52px; padding: 0 .9rem;
-        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-        font-size: .82rem; font-weight: 700; color: #64748b;
-        border-bottom: 3px solid transparent; cursor: pointer;
-        white-space: nowrap; transition: color .15s, border-color .15s;
-        -webkit-tap-highlight-color: transparent; user-select: none;
-        touch-action: manipulation;
-    }
-    .day-tab-name { display: flex; align-items: center; gap: 4px; }
-    .day-tab.active  { color: var(--fr); border-bottom-color: var(--fr); }
-    .day-tab.no-data { color: #cbd5e1; }
-    .day-tab .dot    { width: 6px; height: 6px; border-radius: 50%; background: var(--fr); flex-shrink: 0; }
-    .meal-chip {
-        font-size: .58rem; font-weight: 800; padding: 1px 6px;
-        border-radius: 6px; line-height: 1.6; letter-spacing: .02em;
-    }
+    /* Chọn ca + lưới món (giống Today) */
+    .tp-shifts { display: flex; gap: .4rem; overflow-x: auto; scrollbar-width: none; margin-bottom: .6rem; }
+    .tp-shifts::-webkit-scrollbar { display: none; }
+    .tp-sbtn { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: .35rem;
+               border: 1.5px solid #e2e8f0; background: #fff; border-radius: 14px; padding: .55rem .8rem;
+               font-size: .88rem; font-weight: 800; color: #475569; white-space: nowrap; }
+    .tp-sbtn .ic3d { width: 1.35em; height: 1.35em; }
+    .tp-sbtn.active { color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(0,0,0,.12); }
+    .tp-shift-info { font-size: .8rem; color: #64748b; font-weight: 600; margin: 0 .15rem .6rem; }
+    .tp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1rem; }
+    .tp-food { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 8px rgba(15,23,42,.07);
+               cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .1s; display: flex; flex-direction: column; }
+    .tp-food:active { transform: scale(.97); }
+    .tp-food-img { position: relative; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; }
+    .tp-food-img > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .tp-food-ini { font-size: 2rem; font-weight: 900; }
+    .tp-food-badge { position: absolute; left: 6px; top: 6px; font-size: .68rem; font-weight: 800; padding: 2px 8px;
+                     border-radius: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.12); display: inline-flex; align-items: center; gap: 3px; }
+    .tp-food-badge .ic3d { width: 1.1em; height: 1.1em; }
+    .tp-food-name { overflow-wrap: anywhere; padding: .5rem .6rem .6rem; font-size: .9rem; font-weight: 800; color: #0f172a; line-height: 1.3; }
+    @@media (min-width: 600px) { .tp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    .tp-empty { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; }
+    .tp-empty .ic3d { width: 3rem; height: 3rem; display: block; margin: 0 auto .5rem; }
+    .day-content { display: none; } .day-content.active { display: block; }
 
-    /* ── Day content ── */
-    .day-content { display: none; }
-    .day-content.active { display: block; }
-
-    .holiday-msg { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; font-size: .88rem; }
-    .today-label { text-align: center; padding: .35rem 0; font-size: .78rem; color: var(--fr); font-weight: 700; }
-
-    /* ── Lunch banner ── */
-    .lunch-banner { text-align: center; margin-bottom: .75rem; }
-    .lunch-banner img { width: 100%; max-height: 170px; object-fit: contain; border-radius: 14px; }
-    .lunch-tagline {
-        font-size: .82rem; font-weight: 700; font-style: italic;
-        color: var(--fr); margin: .35rem 0 0; letter-spacing: .01em;
-    }
-
-    /* ── Shift block ── */
-    .shift-block { border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: .625rem; }
-    .shift-header { padding: .6rem 1rem; color: white; font-weight: 700; font-size: .85rem; }
-    .meal-list { background: white; }
-
-    /* ── Meal row ── */
-    .meal-row {
-        display: flex; align-items: center;
-        padding: .7rem .9rem; gap: .75rem;
-        border-bottom: 1px solid #f5f5f5; min-height: 52px;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .meal-row:last-child { border-bottom: none; }
-    .meal-row:active { background: #fafafa; }
-
-    .meal-img    { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
-    .meal-img-ph { width: 56px; height: 56px; border-radius: 10px; background: #f5f5f5;
-                   display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 24px; }
-
-    .meal-info { flex: 1; min-width: 0; }
-    .meal-type { font-size: .65rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 2px; }
-    .meal-name { font-size: .9rem; font-weight: 700; line-height: 1.35; color: #1e293b; }
-
-    .meal-row-clickable { cursor: pointer; }
-    .meal-row-clickable:active { background: #fff0f0 !important; }
-
-    /* Food modal */
-    .food-modal-backdrop {
-        position: fixed; inset: 0; background: rgba(0,0,0,.55);
-        z-index: 1050; display: none; align-items: flex-end;
-        backdrop-filter: blur(3px);
-    }
+    .food-modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 1050; display: none; align-items: flex-end; }
     .food-modal-backdrop.open { display: flex; }
-    .food-modal-sheet {
-        width: 100%; background: white;
-        border-radius: 24px 24px 0 0;
-        padding: 0 0 env(safe-area-inset-bottom,16px);
-        transform: translateY(100%);
-        transition: transform .3s cubic-bezier(.32,.72,0,1);
-        max-height: 92dvh; overflow-y: auto;
-    }
-    .food-modal-backdrop.open .food-modal-sheet { transform: translateY(0); }
-    .food-modal-handle { width: 40px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 10px auto 0; }
-    .food-modal-img {
-        width: 100%; max-height: 280px; object-fit: contain;
-        border-radius: 0; display: block; background: #f8fafc;
-    }
-    .food-modal-img-ph {
-        width: 100%; max-height: 280px; object-fit: cover; display: block;
-        border-radius: 0;
-    }
-    .food-modal-body { padding: 1rem 1.25rem 1.5rem; }
-    .food-modal-name { font-size: 1.1rem; font-weight: 900; color: #1e293b; margin-bottom: .5rem; }
-    .food-modal-wow  { font-size: .95rem; font-weight: 700; font-style: italic; color: var(--fr); }
-    .food-modal-close {
-        position: absolute; top: .75rem; right: .75rem;
-        width: 32px; height: 32px; border-radius: 50%;
-        background: rgba(0,0,0,.35); border: none;
-        display: flex; align-items: center; justify-content: center;
-        color: white; font-size: 1rem; cursor: pointer; z-index: 1;
-    }
-
-    /* ── Banner "xem thực đơn tuần sau" ── */
-    .next-week-cta {
-        display: flex; flex-direction: column; align-items: center; gap: 2px;
-        background: #fff7ed; border: 2px dashed #fb923c; border-radius: 14px;
-        padding: .7rem 1rem; margin-bottom: .75rem;
-        text-decoration: none !important; text-align: center;
-        -webkit-tap-highlight-color: transparent;
-        animation: ctaPulse 1.8s ease-in-out infinite;
-    }
-    .next-week-cta:active { opacity: .8; }
-    .next-week-cta .cta-title { font-size: .9rem; font-weight: 800; color: #c2410c; }
-    .next-week-cta .cta-tap   { font-size: .78rem; font-weight: 700; color: #ea580c; }
-    @@keyframes ctaPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(251,146,60,.45); }
-        50%      { box-shadow: 0 0 0 7px rgba(251,146,60,0); }
-    }
-
-    .auto-nextweek-note {
-        background: #eff6ff; border: 1.5px solid #bfdbfe; color: #1d4ed8;
-        border-radius: 12px; padding: .55rem .8rem; margin-bottom: .75rem;
-        font-size: .8rem; font-weight: 700; line-height: 1.5; text-align: center;
-    }
+    .food-modal-sheet { width: 100%; max-width: 720px; margin: 0 auto; background: #fff; border-radius: 22px 22px 0 0;
+                        padding-bottom: env(safe-area-inset-bottom, 12px); max-height: 92dvh; overflow-y: auto; animation: fmUp .28s cubic-bezier(.32,.72,0,1); }
+    @@keyframes fmUp { from { transform: translateY(100%); } to { transform: none; } }
+    .food-modal-img { width: 100%; max-height: 60vh; object-fit: contain; display: block; background: #f8fafc; }
+    .food-modal-body { padding: .9rem 1.1rem 1.2rem; }
+    .food-modal-type { font-size: .75rem; font-weight: 800; text-transform: uppercase; color: #dc2626; letter-spacing: .04em; }
+    .food-modal-name { font-size: 1.2rem; font-weight: 900; color: #0f172a; line-height: 1.35; }
+    .food-modal-close { position: absolute; top: .7rem; right: .7rem; width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,.45);
+                        border: none; color: #fff; font-size: 1.05rem; z-index: 1; }
 </style>
 
 <div class="food-modal-backdrop" id="foodModal" onclick="closeFoodModal(event)">
     <div class="food-modal-sheet" id="foodModalSheet">
-        <div class="food-modal-handle"></div>
         <div style="position:relative;">
             <button class="food-modal-close" onclick="closeFoodModal()">✕</button>
-            <img class="food-modal-img" id="foodModalImg" src="" alt=""
-                 onerror="this.style.display='none';document.getElementById('foodModalPh').style.display='block';" />
-            <img class="food-modal-img-ph" id="foodModalPh"
-                 src="@Url.Content("~/assets/img/no-food-image.jpg")" alt="Chưa cập nhật hình"
-                 style="display:none;" />
+            <img class="food-modal-img" id="foodModalImg" src="" alt="" />
         </div>
         <div class="food-modal-body">
+            <div class="food-modal-type" id="foodModalType"></div>
             <div class="food-modal-name" id="foodModalName"></div>
-            <div class="food-modal-wow">😍 waooooo nhìn ngon miệng quá</div>
         </div>
     </div>
 </div>
 
-<div class="menu-page px-2 py-2">
-
-    <div class="food-hero">
-        <div>
-            <h5>@(isNextWeek ? "Thực đơn tuần sau" : "Thực đơn tuần này")</h5>
-            <small>@monday.ToString("dd/MM") – @monday.AddDays(5).ToString("dd/MM/yyyy")</small>
+<div class="tp px-2 py-2">
+    <div class="tp-top">
+        <div class="tp-date">
+            <b>@(isNextWeek ? "Tuần sau" : "Tuần này")</b>
+            <span>@monday.ToString("dd/MM") – @monday.AddDays(5).ToString("dd/MM/yyyy")</span>
         </div>
-        <div class="d-flex flex-column align-items-end gap-1">
-            <span class="food-hero-icon">@Html.Icon3D("hr-sunday")</span>
-            @if (isNextWeek && !autoNextWeek)
-            {
-                <a href="@Url.Action("ThisWeek","Menu")" class="btn btn-sm"
-                   style="background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:8px;text-decoration:none;">
-                    ← Tuần này
-                </a>
-            }
-            else if (hasNextWeek)
-            {
-                <a href="@Url.Action("NextWeek","Menu")" class="btn btn-sm"
-                   style="background:rgba(255,255,255,.2);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:8px;text-decoration:none;">
-                    Tuần sau →
-                </a>
-            }
+        <div class="tp-tabs">
+            <a href="@Url.Action("Today")" class="tp-tab">Hôm nay</a>
+            <span class="tp-tab active">Cả tuần</span>
         </div>
     </div>
 
     @if (autoNextWeek)
     {
-        <div class="auto-nextweek-note">
-            @Html.Icon3D("hr-sunday") Hôm nay Chủ nhật — thực đơn <b>tuần sau</b> đã được hiển thị sẵn cho bạn xem trước.
-        </div>
+        <div class="tp-note">@Html.Icon3D("hr-sunday") Hôm nay Chủ nhật — đang hiện sẵn thực đơn <b>tuần sau</b>.</div>
     }
-    else if (!isNextWeek && hasNextWeek)
+    else if (isNextWeek)
     {
-        <a href="@Url.Action("NextWeek","Menu")" class="next-week-cta">
-            <span class="cta-title">@Html.Icon3D("bulletin-comment") Căn tin đã đăng thực đơn tuần sau!</span>
-            <span class="cta-tap">👉 Nhấn vào đây để xem thực đơn tuần sau</span>
+        <a href="@Url.Action("ThisWeek","Menu")" class="tp-weeknav">← Về thực đơn tuần này</a>
+    }
+    else if (hasNextWeek)
+    {
+        <a href="@Url.Action("NextWeek","Menu")" class="tp-next">
+            @Html.Icon3D("bulletin-comment")<span>Căn tin đã đăng thực đơn tuần sau — bấm để xem</span><span>›</span>
         </a>
     }
 
-    <div class="food-tabs">
-        <a href="@Url.Action("Today")" class="food-tab">Hôm nay</a>
-        <div class="food-tab active">Cả tuần</div>
-    </div>
-
-    @{
-        var lunchImg = new Random().Next(2) == 0
-            ? "~/assets/img/illustrations/A_LUNCH.png"
-            : "~/assets/img/illustrations/C_LUNCH.png";
-    }
-    <div class="lunch-banner">
-        <img src="@Url.Content(lunchImg)" alt="Bữa trưa ngon" />
-        <p class="lunch-tagline">✨ Hãy tận hưởng mỹ vị từ bữa cơm trưa của công ty chúng ta!</p>
-    </div>
-
     @if (isEmpty)
     {
-        <div class="holiday-msg">
-            <div style="font-size:2.8rem;margin-bottom:.5rem;">@Html.Icon3D("meal-default")</div>
+        <div class="tp-empty">
+            @Html.Icon3D("meal-default")
             @if (noNextWeekMsg)
             {
-                <p>Hôm nay Chủ nhật — căn tin <b>chưa cập nhật</b> thực đơn tuần sau.<br />Bạn vui lòng quay lại xem sau nhé!</p>
+                <p>Hôm nay Chủ nhật — căn tin <b>chưa cập nhật</b> thực đơn tuần sau.<br />Bạn quay lại xem sau nhé!</p>
             }
             else
             {
@@ -296,116 +193,120 @@
     }
     else
     {
-        <p style="text-align:center;font-size:.73rem;color:#94a3b8;margin-bottom:.5rem;">
-            👆 Nhấn vào món ăn để xem hình
-        </p>
-        <div class="day-tabs" id="dayTabs">
+        <!-- Chọn ngày -->
+        <div class="tw-days" id="dayTabs">
             @foreach (var (dayNo, dayName) in dayConfig)
             {
                 bool hasData = activeDays.Contains(dayNo);
-                bool isToday = dayNo == todayNo;
                 var tabDate  = dayDates.GetValueOrDefault(dayNo, "");
+                var dt       = monday.AddDays(dayNo - 2);
                 userWeekMeals.TryGetValue(tabDate, out var tabMeal);
-                <div class="day-tab @(hasData ? "" : "no-data")"
+                <div class="tw-day day-tab @(hasData ? "" : "off") @(dayNo == todayNo ? "today" : "")"
                      data-day="@dayNo" data-date="@tabDate" onclick="switchDay(@dayNo)">
-                    <span class="day-tab-name">
-                        @dayName
-                        @if (isToday) { <span class="dot"></span> }
-                        <span class="day-lock-ico" data-lock-day="@dayNo" style="display:none;font-size:.7rem;margin-left:2px;">@Html.Icon3D("meal-locked")</span>
-                    </span>
-                    @if (hasData)
+                    <span class="lk day-lock-ico" data-lock-day="@dayNo" style="display:none">@Html.Icon3D("meal-locked")</span>
+                    <b>@dayName.Replace("Thứ ", "T")</b>
+                    <small>@dt.ToString("dd/MM")</small>
+                    @if (hasData && !string.IsNullOrEmpty(tabMeal) && mealBadge.ContainsKey(tabMeal))
                     {
-                        var chipCode = (!string.IsNullOrEmpty(tabMeal) && mealBadge.ContainsKey(tabMeal)) ? tabMeal : "M";
-                        var tc = mealBadge[chipCode];
-                        <span class="meal-chip" style="background:@tc.bg;color:@tc.fg;">@tc.label</span>
+                        var tc = mealBadge[tabMeal];
+                        <span class="chip" style="background:@tc.bg;color:@tc.fg;">@tc.label</span>
                     }
                 </div>
             }
         </div>
 
+        <!-- Chọn ca (áp cho mọi ngày, giống trang Hôm nay) -->
+        <div class="tp-shifts" id="tpShifts">
+            @foreach (var sh in shiftUi)
+            {
+                if (!Model.Any(m => m.SHIFT == sh.Key)) continue;
+                <button type="button" class="tp-sbtn" data-shift="@sh.Key" data-color="@sh.Color">@Html.Icon3D(sh.Icon) @sh.Short</button>
+            }
+            @if (banhFixed.Any())
+            {
+                <button type="button" class="tp-sbtn" data-shift="BANH" data-color="#ca8a04">@Html.Icon3D("meal-bread") Bánh</button>
+            }
+        </div>
+
         @foreach (var (dayNo, dayName) in dayConfig)
         {
-            bool isToday  = dayNo == todayNo;
-            var  dayItems = Model.Where(m => m.DAY_NO == dayNo).ToList();
-
-            <div class="day-content" id="day-@dayNo" data-date="@dayDates.GetValueOrDefault(dayNo, "")">
-                <div class="lock-banner" data-lock-content="@dayNo" style="display:none;margin-bottom:.6rem;"></div>
-
+            var dayItems   = Model.Where(m => m.DAY_NO == dayNo).ToList();
+            var dayDateKey = dayDates.GetValueOrDefault(dayNo, "");
+            <div class="day-content" id="day-@dayNo" data-date="@dayDateKey">
+                <div class="lock-banner" data-lock-content="@dayNo" style="display:none;"></div>
                 @if (!dayItems.Any())
                 {
-                    <div class="holiday-msg">
-                        <div style="font-size:2.2rem;margin-bottom:.4rem;">@Html.Icon3D("leave-today")</div>
-                        <p>Ngày nghỉ — không có thực đơn</p>
-                    </div>
+                    <div class="tp-empty">@Html.Icon3D("leave-today")<p>Ngày nghỉ — không có thực đơn</p></div>
                 }
                 else
                 {
-                    if (isToday)
+                    userWeekMeals.TryGetValue(dayDateKey, out var userMealCode);
+                    if (!string.IsNullOrEmpty(userMealCode) && mealBadge.ContainsKey(userMealCode))
                     {
-                        <div class="today-label">Hôm nay — @DateTime.Today.ToString("dd/MM/yyyy")</div>
+                        var badge = mealBadge[userMealCode];
+                        <div class="tw-mine" style="background:@badge.bg;color:@badge.fg;">@Html.Icon3D("meal-default") Bạn đăng ký: @badge.label</div>
                     }
 
-                    var dayDateKey  = dayDates.GetValueOrDefault(dayNo, "");
-                    userWeekMeals.TryGetValue(dayDateKey, out var userMealCode);
-                    var contentCode = (!string.IsNullOrEmpty(userMealCode) && mealBadge.ContainsKey(userMealCode)) ? userMealCode : "M";
-                    var badge       = mealBadge[contentCode];
-                    <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.6rem;padding:.45rem .75rem;border-radius:12px;background:@badge.bg;font-size:.78rem;font-weight:700;color:@badge.fg;">
-                        <span style="font-size:1rem;">@Html.Icon3D("meal-default")</span> Bạn đăng ký: @badge.label
-                    </div>
-
-                    @foreach (var (shiftKey, shiftLabel, shiftColor) in shifts)
+                    @foreach (var sh in shiftUi)
                     {
-                        var shiftItems = dayItems.Where(m => m.SHIFT == shiftKey).ToList();
-                        if (!shiftItems.Any()) continue;
-
-                        var byMeal = shiftItems
-                            .GroupBy(m => m.MEAL_TYPE)
-                            .OrderBy(g => g.Key == "MAN" ? 0 : g.Key == "DU_KIEN" ? 1 : g.Key == "NHE" ? 2 : 3);
-
-                        <div class="shift-block">
-                            <div class="shift-header" style="background:@shiftColor;">@shiftLabel</div>
-                            <div class="meal-list">
-                                @foreach (var mealGroup in byMeal)
-                                {
-                                    var lbl   = mealLabels.GetValueOrDefault(mealGroup.Key, mealGroup.Key);
-                                    var foods = mealGroup.OrderBy(f => f.DISPLAY_ORDER).ToList();
-                                    @foreach (var food in foods)
+                        var items = dayItems.Where(m => m.SHIFT == sh.Key)
+                            .OrderBy(m => m.MEAL_TYPE == "MAN" ? 0 : m.MEAL_TYPE == "DU_KIEN" ? 1 : m.MEAL_TYPE == "NHE" ? 2 : m.MEAL_TYPE == "CHAY" ? 3 : 4)
+                            .ThenBy(m => m.DISPLAY_ORDER).ToList();
+                        <section class="tp-shift-pane" data-pane="@sh.Key" hidden>
+                            @if (!items.Any())
+                            {
+                                <div class="tp-empty" style="padding:1.5rem 1rem"><p>Ca này không có thực đơn ngày này</p></div>
+                            }
+                            else
+                            {
+                                <div class="tp-shift-info">@sh.Desc</div>
+                                <div class="tp-grid">
+                                    @foreach (var food in items)
                                     {
-                                        var foodName = food.FOOD_NAME ?? "";
-                                        var imgUrl   = food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue
-                                            ? Url.Action("GetFoodImage","Image", new { fileName = food.FOOD_ID + ".jpg" }) + "&v=" + DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-                                            : null;
-                                        <div class="meal-row meal-row-clickable"
-                                             data-food-img="@imgUrl"
-                                             data-food-name="@foodName"
-                                             onclick="openFoodModal(this)">
-                                            @if (food.IS_IMAGE == "Y" && food.FOOD_ID.HasValue)
-                                            {
-                                                <img class="meal-img"
-                                                     src="@imgUrl"
-                                                     alt="@foodName" loading="lazy"
-                                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
-                                                <div class="meal-img-ph" style="display:none;">@Html.Icon3D("meal-default")</div>
-                                            }
-                                            else
-                                            {
-                                                <div class="meal-img-ph">@Html.Icon3D("meal-default")</div>
-                                            }
-                                            <div class="meal-info">
-                                                <div class="meal-type">@lbl</div>
-                                                <div class="meal-name">@foodName</div>
+                                        var name   = food.FOOD_NAME ?? "";
+                                        var label  = mealLabels.GetValueOrDefault(food.MEAL_TYPE ?? "", food.MEAL_TYPE ?? "");
+                                        var colors = mealColors.GetValueOrDefault(food.MEAL_TYPE ?? "", (bg: "#f1f5f9", fg: "#334155"));
+                                        var img    = FoodImg(food.FOOD_ID, food.IS_IMAGE);
+                                        <div class="tp-food" data-food-img="@img" data-food-name="@name" data-food-type="@label" onclick="openFoodModal(this)">
+                                            <div class="tp-food-img" style="background:@colors.bg;">
+                                                <span class="tp-food-ini" style="color:@colors.fg;">@(name.Length > 0 ? name[0].ToString().ToUpper() : "?")</span>
+                                                @if (img != null)
+                                                {
+                                                    <img src="@img" alt="@name" loading="lazy" onerror="this.remove()" />
+                                                }
+                                                <span class="tp-food-badge" style="background:@colors.bg;color:@colors.fg;">@Html.Icon3D(mealIcons.GetValueOrDefault(food.MEAL_TYPE ?? "", "meal-default")) @label</span>
                                             </div>
+                                            <div class="tp-food-name">@name</div>
                                         </div>
                                     }
+                                </div>
+                            }
+                        </section>
+                    }
+                    @if (banhFixed.Any())
+                    {
+                        <section class="tp-shift-pane" data-pane="BANH" hidden>
+                            <div class="tp-shift-info">Suất 2 món Bánh — luôn có mỗi ngày</div>
+                            <div class="tp-grid">
+                                @foreach (var bf in banhFixed)
+                                {
+                                    var img = FoodImg(bf.FoodId, bf.IsImage);
+                                    <div class="tp-food" data-food-img="@img" data-food-name="@bf.FoodName" data-food-type="Bánh" onclick="openFoodModal(this)">
+                                        <div class="tp-food-img" style="background:#FEF9C3;">
+                                            <span class="tp-food-ini" style="color:#78350F;">@((bf.FoodName ?? "?").Substring(0, 1).ToUpper())</span>
+                                            @if (img != null) { <img src="@img" alt="@bf.FoodName" loading="lazy" onerror="this.remove()" /> }
+                                            <span class="tp-food-badge" style="background:#FEF9C3;color:#78350F;">@Html.Icon3D("meal-bread") Bánh</span>
+                                        </div>
+                                        <div class="tp-food-name">@bf.FoodName</div>
+                                    </div>
                                 }
                             </div>
-                        </div>
+                        </section>
                     }
                 }
             </div>
         }
     }
-
 </div>
 
 <script>
@@ -425,6 +326,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const days = [@string.Join(",", Model.Select(m => m.DAY_NO).Distinct().OrderBy(d=>d))];
     if (days.includes(todayNo))       switchDay(todayNo);
     else if (days.length > 0)         switchDay(days[0]);
+    initShiftTabs();
     loadAllLocks();
 });
 
@@ -474,42 +376,30 @@ function applyLockToDay(dayNo, isoDate, lockInfo) {
         if (icon) icon.style.display = '';
         if (banner) {
             const noteLine = lockInfo.note
-                ? `<div style="font-weight:500;font-size:.72rem;color:#7f1d1d;margin-top:.2rem;font-style:italic;">${window.ic3d('survey')} ${escTxt(lockInfo.note)}</div>`
+                ? `<div style="font-weight:500;font-size:.75rem;margin-top:.15rem;font-style:italic;">${escTxt(lockInfo.note)}</div>`
                 : '';
             banner.style.display = '';
-            banner.innerHTML = `
-                <div style="background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;border-radius:10px;padding:.55rem .75rem;font-size:.8rem;font-weight:700;line-height:1.5;">
-                    ${window.ic3d('meal-locked')} Ngày <b>${dLabel}</b> có sự kiện đặc biệt nên kể từ bây giờ không thể đổi món cho ngày đó. Xin cảm ơn!
-                    ${noteLine}
-                </div>`;
+            banner.innerHTML = `<div class="tw-lock" style="background:#fef2f2;color:#b91c1c;">
+                    ${window.ic3d('meal-locked')} Ngày <b>${dLabel}</b> đã khoá đổi món (sự kiện đặc biệt).${noteLine}</div>`;
         }
     } else if (lockInfo.reason && lockInfo.cutoffDt) {
         if (banner) {
             const noteLine = lockInfo.note
-                ? `<br><span style="font-style:italic;">${window.ic3d('survey')} ${escTxt(lockInfo.note)}</span>` : '';
+                ? `<br><span style="font-style:italic;font-weight:500;">${escTxt(lockInfo.note)}</span>` : '';
             banner.style.display = '';
-            banner.innerHTML = `
-                <div style="background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:.5rem .75rem;font-size:.78rem;line-height:1.5;">
-                    ${window.ic3d('overtime')} Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${escTxt(lockInfo.reason)}.${noteLine}
-                </div>`;
+            banner.innerHTML = `<div class="tw-lock" style="background:#fffbeb;color:#92400e;">
+                    ${window.ic3d('overtime')} Ngày <b>${dLabel}</b> sẽ chốt số lượng — ${escTxt(lockInfo.reason)}.${noteLine}</div>`;
         }
     }
 }
 
+const NO_IMG = '@Url.Content("~/assets/img/no-food-image.jpg")';
 function openFoodModal(el) {
-    const imgUrl = el.dataset.foodImg;
-    const name   = el.dataset.foodName || '';
-    const modalImg = document.getElementById('foodModalImg');
-    const modalPh  = document.getElementById('foodModalPh');
-    document.getElementById('foodModalName').textContent = name;
-    if (imgUrl) {
-        modalImg.style.display = 'block';
-        modalPh.style.display  = 'none';
-        modalImg.src = imgUrl;
-    } else {
-        modalImg.style.display = 'none';
-        modalPh.style.display  = 'block';
-    }
+    const img = document.getElementById('foodModalImg');
+    img.onerror = function () { this.onerror = null; this.src = NO_IMG; };
+    img.src = el.dataset.foodImg || NO_IMG;
+    document.getElementById('foodModalName').textContent = el.dataset.foodName || '';
+    document.getElementById('foodModalType').textContent = el.dataset.foodType || '';
     document.getElementById('foodModal').classList.add('open');
     document.body.style.overflow = 'hidden';
 }
@@ -517,13 +407,29 @@ function openFoodModal(el) {
 function closeFoodModal(e) {
     if (e && e.target !== document.getElementById('foodModal') &&
         !e.target.classList.contains('food-modal-close')) return;
-    const sheet = document.getElementById('foodModalSheet');
-    sheet.style.transform = 'translateY(100%)';
-    setTimeout(() => {
-        document.getElementById('foodModal').classList.remove('open');
-        sheet.style.transform = '';
-        document.body.style.overflow = '';
-    }, 280);
+    document.getElementById('foodModal').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+// Chọn ca: dùng CHUNG lựa chọn với trang Hôm nay (cùng localStorage), áp cho mọi ngày trong tuần.
+// Chưa chọn thì tự chọn theo giờ (trước 15h Ca 1, 15–21h Ca 2, còn lại Ca 3).
+function initShiftTabs() {
+    const btns = [...document.querySelectorAll('#tpShifts .tp-sbtn')];
+    if (!btns.length) return;
+    const KEY = 'menuTodayShift', dayKey = new Date().toDateString();
+    function pick(key) {
+        btns.forEach(b => { const on = b.dataset.shift === key; b.classList.toggle('active', on); b.style.background = on ? b.dataset.color : ''; });
+        document.querySelectorAll('.tp-shift-pane').forEach(p => p.hidden = p.dataset.pane !== key);
+    }
+    btns.forEach(b => b.addEventListener('click', () => {
+        pick(b.dataset.shift);
+        try { localStorage.setItem(KEY, JSON.stringify({ d: dayKey, s: b.dataset.shift })); } catch (e) { }
+    }));
+    let saved = null;
+    try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && v.d === dayKey) saved = v.s; } catch (e) { }
+    const h = new Date().getHours(), byTime = h < 15 ? 'CA1' : h < 21 ? 'CA2' : 'CA3';
+    const has = k => btns.some(b => b.dataset.shift === k);
+    pick(saved && has(saved) ? saved : has(byTime) ? byTime : btns[0].dataset.shift);
 }
 
 (function(){

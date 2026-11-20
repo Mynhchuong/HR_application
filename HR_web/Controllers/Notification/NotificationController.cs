@@ -31,9 +31,17 @@ public class NotificationController : BaseController
     // đơn — quản lý nhận thông báo "có 5 đơn chờ duyệt" vẫn phải lục menu. Bảng ánh xạ mã ->
     // đường dẫn vốn nằm trong JS của Notification/Index.cshtml, nếu chép sang iOS + Android nữa là
     // thành 3 bản, sửa 1 chỗ quên 2 chỗ. Đặt ở server thì native chỉ cần mở đúng 1 URL này.
+    //
+    // ⚠️ Tham số URL tên "action" TRÙNG route value {action} (= "Go") — để binding mặc định thì MVC lấy route
+    // value trước query string → action luôn = "Go" → mọi thông báo rơi về trang Thông báo (lỗi gốc của
+    // "bấm thông báo cứ nhảy vào Notification/Index", cả app lẫn web, xác nhận bằng app thử 2026-11-20).
+    // Ép đọc từ QUERY STRING; giữ nguyên tên "?action=" vì app iOS/Android đã phát hành đang gửi đúng tên này.
     [HttpGet]
-    public async Task<IActionResult> Go(string? action, string? target, decimal? noti)
+    public async Task<IActionResult> Go([FromQuery(Name = "action")] string? linkAction,
+                                        [FromQuery(Name = "target")] string? target,
+                                        [FromQuery(Name = "noti")]   decimal? noti)
     {
+        var action = linkAction;
         // Bấm vào thông báo = đã đọc, giống hệt khi bấm trong hộp thư.
         if (noti.HasValue && noti.Value > 0 && CurrentUser?.EmpCd is string emp && emp.Length > 0)
         {

@@ -29,6 +29,12 @@
     .sh-prev-head { display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #f1f5f9; padding-bottom: .6rem; margin-bottom: .6rem; font-size: .85rem; }
     .sh-prev-head b { color: #0f172a; }
     #mailFrame { width: 100%; height: 72vh; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; }
+    .sh-hist { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+    .sh-hist-row { display: flex; gap: 8px; align-items: flex-start; border: 1px solid #f1f5f9; border-radius: 10px; padding: 7px 9px; font-size: .8rem; }
+    .sh-hist-row .ic { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 800; color: #fff; }
+    .sh-hist-row b { color: #0f172a; } .sh-hist-row small { color: #94a3b8; display: block; word-break: break-all; }
+    .sh-hist-row .tag { font-size: .66rem; font-weight: 800; padding: 1px 6px; border-radius: 6px; margin-left: 4px; }
+    .sh-hist-empty { color: #94a3b8; font-size: .82rem; }
     .sh-err { background: #fef2f2; color: #991b1b; border-radius: 10px; padding: .55rem .7rem; font-size: .8rem; margin-bottom: .8rem; display: none; }
 </style>
 
@@ -71,6 +77,10 @@
                 <input class="form-control" id="fTestTo" value="@myEmail" placeholder="email của bạn" />
                 <button class="btn btn-outline-danger mb-0" onclick="sendTest()">Gửi thử</button>
             </div>
+
+            <!-- Lịch sử gửi: mọi lần gửi (thật + thử), gửi lại nhiều lần được -->
+            <h6 class="mt-4 mb-2 d-flex align-items-center gap-2">🕘 Lịch sử gửi <span class="sh-pill st-NEW" id="histCount">0 lần</span></h6>
+            <div id="histList" class="sh-hist"><div class="sh-hist-empty">Chưa gửi lần nào</div></div>
         </div>
 
         <!-- Xem trước -->
@@ -123,6 +133,29 @@ async function load() {
     setStatus(e.status, e.sentDt);
     if (e.status === 'FAILED' && e.lastError) { $('lastErr').style.display = 'block'; $('lastErr').textContent = 'Lần gửi trước lỗi: ' + e.lastError; }
     loadPreview();
+    loadHistory();
+}
+
+async function loadHistory() {
+    const d = await fetch('@Url.Action("History", "BulletinShare")/' + BID + '?channel=EMAIL').then(r => r.json()).catch(() => null);
+    const list = $('histList');
+    if (!d || !d.success) { list.innerHTML = '<div class="sh-hist-empty">Không tải được lịch sử</div>'; return; }
+    const rows = d.data || [];
+    const real = rows.filter(x => !x.isTest && x.ok).length;
+    $('histCount').textContent = real + ' lần';
+    $('histCount').className = 'sh-pill ' + (real ? 'st-SENT' : 'st-NEW');
+    const esc = t => (t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    list.innerHTML = rows.length ? rows.map(x => `
+        <div class="sh-hist-row">
+            <span class="ic" style="background:${x.ok ? (x.isTest ? '#64748b' : '#16a34a') : '#dc2626'}">${x.ok ? '✓' : '!'}</span>
+            <div style="min-width:0">
+                <b>${new Date(x.sentDt).toLocaleString('vi-VN')}</b>
+                ${x.isTest ? '<span class="tag" style="background:#f1f5f9;color:#475569">Gửi thử</span>' : '<span class="tag" style="background:#dcfce7;color:#166534">Gửi thật</span>'}
+                ${x.ok ? '' : '<span class="tag" style="background:#fee2e2;color:#991b1b">Lỗi</span>'}
+                <small>${esc(x.sentBy)} → ${esc(x.recipients)}</small>
+                ${x.error ? `<small style="color:#b91c1c">${esc(x.error)}</small>` : ''}
+            </div>
+        </div>`).join('') : '<div class="sh-hist-empty">Chưa gửi lần nào</div>';
 }
 
 async function save(toast) {
@@ -159,12 +192,14 @@ async function sendTest() {
     const r = await post(U.send, 'testTo=' + encodeURIComponent(to));
     hideLoading();
     showToast(r.message || (r.success ? 'Đã gửi thử' : 'Lỗi'), r.success ? 'success' : 'error');
+    loadHistory();
 }
 
 function sendNow() {
     const to = $('fRecipients').value.trim();
     if (!to) { showToast('Chưa có người nhận', 'warning'); return; }
-    const again = $('stPill').classList.contains('st-SENT') ? '<br><b style="color:#b91c1c">Bài này đã gửi email rồi — gửi lại lần nữa?</b>' : '';
+    const n = parseInt($('histCount').textContent) || 0;
+    const again = n > 0 ? `<br><b style="color:#b45309">Bài này đã gửi ${n} lần — gửi thêm lần nữa?</b>` : '';
     showConfirm(`Gửi email tới:<br><b>${to.replace(/</g,'&lt;')}</b>${again}`, async () => {
         try { await save(false); } catch { return; }
         showLoading('Đang gửi email...');

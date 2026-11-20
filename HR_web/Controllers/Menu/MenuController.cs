@@ -1005,6 +1005,7 @@ public class MenuController : BaseController
                 ViewBag.WeekMonday   = DateTime.Today.AddDays(1);
                 if (CurrentUser != null)
                     ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
+                ViewBag.BanhFixed = await _svc.GetBanhFixedAsync();
                 return View(nextWeekData);
             }
             ViewBag.NoNextWeekMsg = true;
@@ -1014,6 +1015,7 @@ public class MenuController : BaseController
         ViewBag.WeekMonday = DateTime.Today.AddDays(-(((int)DateTime.Today.DayOfWeek + 6) % 7));
         if (CurrentUser != null)
             ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
+        ViewBag.BanhFixed = await _svc.GetBanhFixedAsync();   // nút "Bánh" giống trang Hôm nay
         return View(data);
     }
 
@@ -1025,6 +1027,7 @@ public class MenuController : BaseController
         ViewBag.WeekMonday   = DateTime.Today.AddDays(7 - ((int)DateTime.Today.DayOfWeek + 6) % 7);
         if (CurrentUser != null)
             ViewBag.UserWeekMeals = await _svc.GetUserWeekMealAsync(CurrentUser.EmpCd);
+        ViewBag.BanhFixed = await _svc.GetBanhFixedAsync();
         return View("ThisWeek", data);
     }
 

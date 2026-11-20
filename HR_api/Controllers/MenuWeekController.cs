@@ -218,15 +218,21 @@ public class MenuWeekController : ControllerBase
             if (cnt.Count == 0 || cnt[0] == 0)
                 return Ok(new { success = false, message = "Chưa có món ăn nào, vui lòng nhập thực đơn trước khi đăng" });
 
-            // Chỉ cho phép 1 thực đơn PUBLISHED tại 1 thời điểm:
-            // ẩn (về DRAFT) tất cả tuần khác đang PUBLISHED, rồi mới publish tuần mới.
+            // Chỉ ẩn (về DRAFT) tuần khác đang PUBLISHED mà TRÙNG NGÀY với tuần sắp đăng (đăng lại bản khác của
+            // cùng tuần). Trước đây ẩn MỌI tuần khác → thứ Sáu đăng thực đơn tuần sau là thực đơn tuần này (thứ
+            // Bảy) biến mất (báo lỗi 2026-11-20). Tuần này + tuần sau giờ cùng PUBLISHED được; trang công nhân tự
+            // lọc theo ngày (this-week / next-week / today) nên không lẫn.
             const string sql = @"
                 BEGIN
-                    UPDATE HRMS.HR_MENU_WEEK
+                    UPDATE HRMS.HR_MENU_WEEK O
                        SET STATUS  = 'DRAFT',
                            UPDT_ID = :UPDT_ID,
                            UPDT_DT = SYSDATE
-                     WHERE STATUS = 'PUBLISHED' AND ID <> :ID;
+                     WHERE O.STATUS = 'PUBLISHED' AND O.ID <> :ID
+                       AND EXISTS (SELECT 1 FROM HRMS.HR_MENU_WEEK N
+                                    WHERE N.ID = :ID
+                                      AND TRUNC(O.FROM_DATE) <= TRUNC(N.TO_DATE)
+                                      AND TRUNC(O.TO_DATE)   >= TRUNC(N.FROM_DATE));
 
                     UPDATE HRMS.HR_MENU_WEEK
                        SET STATUS  = 'PUBLISHED',

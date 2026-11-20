@@ -52,11 +52,76 @@ public class BulletinShareController : ControllerBase
     private static bool TryLock(int bulletinId, string ch) => _sending.TryAdd($"{bulletinId}:{ch}", 0);
     private static void Unlock(int bulletinId, string ch) => _sending.TryRemove($"{bulletinId}:{ch}", out _);
 
-    /// <summary>Vừa gửi/đăng thành công trong 3 phút qua → từ chối (chặn trùng kể cả khi IIS chạy nhiều tiến trình / vừa khởi động lại).</summary>
+    /// <summary>Vừa gửi/đăng thành công trong 1 phút qua → từ chối (chặn bấm trùng; gửi lại sau đó vẫn được — HR cần gửi nhiều lần).</summary>
     private async Task<bool> JustSentAsync(int bulletinId, string ch) =>
         (await _db.ExecuteQueryAsync(@"SELECT 1 FROM HRMS.HR_BULLETIN_SHARE
-                WHERE BULLETIN_ID = :B AND CHANNEL = :C AND STATUS = 'SENT' AND SENT_DT > SYSDATE - 3/1440",
+                WHERE BULLETIN_ID = :B AND CHANNEL = :C AND STATUS = 'SENT' AND SENT_DT > SYSDATE - 1/1440",
             r => 1, new OracleParameter("B", bulletinId), new OracleParameter("C", ch))).Count > 0;
+
+    // ── Lịch sử gửi (HR_BULLETIN_SHARE_LOG) — bảng chưa tạo thì bỏ qua, không chặn việc gửi ──
+    private static volatile bool _logReady;
+    private async Task<bool> LogReadyAsync()
+    {
+        if (_logReady) return true;
+        try
+        {
+            _logReady = (await _db.ExecuteQueryAsync("SELECT COUNT(*) AS C FROM ALL_TABLES WHERE OWNER = 'HRMS' AND TABLE_NAME = 'HR_BULLETIN_SHARE_LOG'",
+                r => Convert.ToInt32(r["C"]))).FirstOrDefault() > 0;
+        }
+        catch { }
+        return _logReady;
+    }
+    private async Task LogSendAsync(int bulletinId, string ch, bool isTest, bool ok, IEnumerable<string>? to, string? subject, string? error, string? user)
+    {
+        try
+        {
+            if (!await LogReadyAsync()) return;
+            await _db.ExecuteNonQueryAsync(@"
+                INSERT INTO HRMS.HR_BULLETIN_SHARE_LOG (ID, BULLETIN_ID, CHANNEL, IS_TEST, OK, RECIPIENTS, SUBJECT, ERROR_MSG, SENT_BY, SENT_DT)
+                VALUES (HRMS.SEQ_HR_BULLETIN_SHARE_LOG.NEXTVAL, :B, :C, :T, :OK, :R, :S, :E, :U, SYSDATE)",
+                new OracleParameter("B", OracleDbType.Int32) { Value = bulletinId },
+                new OracleParameter("C", OracleDbType.Varchar2) { Value = ch },
+                new OracleParameter("T", OracleDbType.Int32) { Value = isTest ? 1 : 0 },
+                new OracleParameter("OK", OracleDbType.Int32) { Value = ok ? 1 : 0 },
+                new OracleParameter("R", OracleDbType.Varchar2) { Value = (object?)Trunc(to == null ? null : string.Join(", ", to), 2000) ?? DBNull.Value },
+                new OracleParameter("S", OracleDbType.NVarchar2) { Value = (object?)Trunc(subject, 500) ?? DBNull.Value },
+                new OracleParameter("E", OracleDbType.NVarchar2) { Value = (object?)Trunc(error, 1000) ?? DBNull.Value },
+                new OracleParameter("U", OracleDbType.Varchar2) { Value = (object?)user ?? DBNull.Value });
+        }
+        catch { /* ghi lịch sử lỗi không được làm hỏng kết quả gửi */ }
+    }
+
+    // GET apiHR/BulletinShare/{id}/history?channel=EMAIL — lịch sử gửi (mới nhất trước)
+    [HttpGet("{bulletinId:int}/history")]
+    public async Task<IActionResult> History(int bulletinId, [FromQuery] string? channel, [FromQuery] string? loginUser)
+    {
+        try
+        {
+            if (!await LogReadyAsync()) return Ok(new { success = true, data = Array.Empty<object>() });
+            var b = await LoadBulletinBasicAsync(bulletinId);
+            if (b == null) return Ok(new { success = false, message = "Không tìm thấy bản tin" });
+            if (!await CanAccessAsync(b, loginUser)) return Ok(new { success = false, message = "Không có quyền" });
+            var ch = string.IsNullOrWhiteSpace(channel) ? "EMAIL" : channel.ToUpperInvariant();
+            var rows = await _db.ExecuteQueryAsync(@"
+                SELECT * FROM (
+                    SELECT L.IS_TEST, L.OK, L.RECIPIENTS, L.SUBJECT, L.ERROR_MSG, L.SENT_BY, L.SENT_DT
+                    FROM HRMS.HR_BULLETIN_SHARE_LOG L
+                    WHERE L.BULLETIN_ID = :B AND L.CHANNEL = :C
+                    ORDER BY L.SENT_DT DESC, L.ID DESC
+                ) WHERE ROWNUM <= 50",
+                r => new
+                {
+                    isTest = Convert.ToInt32(r["IS_TEST"]) == 1, ok = Convert.ToInt32(r["OK"]) == 1,
+                    recipients = r["RECIPIENTS"] == DBNull.Value ? null : r["RECIPIENTS"].ToString(),
+                    subject = r["SUBJECT"] == DBNull.Value ? null : r["SUBJECT"].ToString(),
+                    error = r["ERROR_MSG"] == DBNull.Value ? null : r["ERROR_MSG"].ToString(),
+                    sentBy = r["SENT_BY"] == DBNull.Value ? null : r["SENT_BY"].ToString(),
+                    sentDt = Convert.ToDateTime(r["SENT_DT"])
+                }, new OracleParameter("B", bulletinId), new OracleParameter("C", ch));
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
 
     private IActionResult NotReady() => Ok(new { success = false, needDdl = true, message = "Chưa chạy script Scripts/create_bulletin_share.sql" });
 
@@ -88,6 +153,16 @@ public class BulletinShareController : ControllerBase
         var en      = await ReadClobAsync("HR_BULLETIN", "CONTENT_EN", "ID = :ID", new OracleParameter("ID", id));
         b.ContentEn = string.IsNullOrWhiteSpace(en) ? null : en;
         b.Role = await TrainingScopeHelper.GetCreatorRoleAsync(_db, b.InstId);
+        return b;
+    }
+
+    /// <summary>Chỉ thông tin để kiểm quyền (không đọc nội dung bài).</summary>
+    private async Task<Blt?> LoadBulletinBasicAsync(int id)
+    {
+        var b = (await _db.ExecuteQueryAsync("SELECT ID, INST_ID FROM HRMS.HR_BULLETIN WHERE ID = :ID",
+            r => new Blt { Id = Convert.ToInt32(r["ID"]), InstId = r["INST_ID"] == DBNull.Value ? null : r["INST_ID"].ToString() },
+            new OracleParameter("ID", id))).FirstOrDefault();
+        if (b != null) b.Role = await TrainingScopeHelper.GetCreatorRoleAsync(_db, b.InstId);
         return b;
     }
 
@@ -323,11 +398,15 @@ public class BulletinShareController : ControllerBase
             if (list.Count == 0) return Ok(new { success = true, available = true, data = Array.Empty<object>() });
             var ps = list.Select((v, i) => new OracleParameter("P" + i, v)).ToArray();
             var rows = await _db.ExecuteQueryAsync(
-                $"SELECT BULLETIN_ID, CHANNEL, STATUS, SENT_DT FROM HRMS.HR_BULLETIN_SHARE WHERE BULLETIN_ID IN ({string.Join(",", ps.Select(p => ":" + p.ParameterName))})",
+                $@"SELECT S.BULLETIN_ID, S.CHANNEL, S.STATUS, S.SENT_DT{(await LogReadyAsync()
+                        ? ", (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_SHARE_LOG L WHERE L.BULLETIN_ID = S.BULLETIN_ID AND L.CHANNEL = S.CHANNEL AND L.IS_TEST = 0 AND L.OK = 1) AS CNT"
+                        : ", 0 AS CNT")}
+                   FROM HRMS.HR_BULLETIN_SHARE S WHERE S.BULLETIN_ID IN ({string.Join(",", ps.Select(p => ":" + p.ParameterName))})",
                 r => new
                 {
                     bulletinId = Convert.ToInt32(r["BULLETIN_ID"]), channel = r["CHANNEL"]?.ToString(), status = r["STATUS"]?.ToString(),
-                    sentDt = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"])
+                    sentDt = r["SENT_DT"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(r["SENT_DT"]),
+                    sentCount = Convert.ToInt32(r["CNT"])
                 }, ps);
             return Ok(new { success = true, available = true, data = rows });
         }
@@ -379,13 +458,16 @@ public class BulletinShareController : ControllerBase
         try
         {
             if (!isTest && await JustSentAsync(req.BulletinId, "EMAIL"))
-                return Ok(new { success = false, message = "Email bản tin này VỪA được gửi (dưới 3 phút) — không gửi lại để tránh trùng" });
-            try { await SendMailAsync(to, (isTest ? "[GỬI THỬ] " : "") + (s.Subject ?? b.Title), b, s); }
+                return Ok(new { success = false, message = "Email bản tin này vừa được gửi xong (dưới 1 phút) — đợi chút rồi gửi lại nếu cần" });
+            var subj = (isTest ? "[GỬI THỬ] " : "") + (s.Subject ?? b.Title);
+            try { await SendMailAsync(to, subj, b, s); }
             catch (Exception ex)
             {
                 if (!isTest) { try { await MarkAsync(req.BulletinId, "EMAIL", false, ex.Message, null, req.LoginUser); } catch { } }
+                await LogSendAsync(req.BulletinId, "EMAIL", isTest, false, to, subj, ex.Message, req.LoginUser);
                 return Ok(new { success = false, message = "Gửi email lỗi: " + ex.Message });
             }
+            await LogSendAsync(req.BulletinId, "EMAIL", isTest, true, to, subj, null, req.LoginUser);
             if (isTest) return Ok(new { success = true, message = $"Đã gửi thử tới {to[0]}" });
             // Mail ĐÃ đi rồi: lỗi ghi trạng thái KHÔNG được báo "gửi lỗi" (người dùng sẽ gửi lại → cả công ty nhận 2 mail)
             string warn = "";
@@ -779,7 +861,7 @@ public class BulletinShareController : ControllerBase
         try
         {
             if (await JustSentAsync(req.BulletinId, "FB"))
-                return Ok(new { success = false, message = "Bài này VỪA được đăng (dưới 3 phút) — không đăng lại để tránh trùng" });
+                return Ok(new { success = false, message = "Bài này vừa được đăng (dưới 1 phút) — đợi chút rồi đăng lại nếu cần" });
             string body;
             try
             {

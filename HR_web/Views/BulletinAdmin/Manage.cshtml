@@ -351,7 +351,10 @@
                 if (x.status === 'SENT') {
                     b.classList.add('sent');
                     b.insertAdjacentHTML('beforeend', '<span class="share-tick">✓</span>');
-                    b.title = `${name}: đã gửi ${new Date(x.sentDt).toLocaleString('vi-VN')}`;
+                    b.title = `${name}: đã gửi ${x.sentCount > 1 ? x.sentCount + ' lần, ' : ''}lần gần nhất ${new Date(x.sentDt).toLocaleString('vi-VN')}`;
+                    if (x.sentCount > 1) {   // gửi nhiều lần: thay dấu ✓ bằng số lần
+                        const t = b.querySelector('.share-tick'); if (t) t.textContent = x.sentCount;
+                    }
                 } else if (x.status === 'FAILED') {
                     b.insertAdjacentHTML('beforeend', '<span class="share-tick" style="background:#dc2626">!</span>');
                     b.title = `${name}: gửi lỗi — bấm để xem`;

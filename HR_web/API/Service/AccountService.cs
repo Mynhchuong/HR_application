@@ -40,11 +40,15 @@ public class AccountService
 
     #region LOGIN
     public async Task<UserInfoModel?> LoginAsync(string empcd, string password, string? deviceType = null)
+        => (await LoginWithMessageAsync(empcd, password, deviceType)).user;
+
+    /// <summary>Như LoginAsync nhưng trả kèm câu báo lỗi của API (vd "còn 2 lần thử", "tạm khoá đến 09:45").</summary>
+    public async Task<(UserInfoModel? user, string? message)> LoginWithMessageAsync(string empcd, string password, string? deviceType = null)
     {
         var payload = new { EmpCd = empcd, Password = password, DeviceType = deviceType };
         var response = await _api.PostAsync(LoginEndpoint, payload);
         var result = await ParseResponse<UserInfoModel>(response);
-        return (result != null && result.success) ? result.data : null;
+        return (result != null && result.success) ? (result.data, null) : (null, result?.message);
     }
 
     private class CheckActiveResponse

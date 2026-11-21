@@ -86,16 +86,20 @@ public class AccountController : Controller
             return View(LoginViewName(), model);
 
         var deviceType = DeviceDetector.Classify(Request.Headers.UserAgent.ToString());
-        var user = await _service.LoginAsync(model.EMPCD, model.Password, deviceType);
+        var (user, apiMessage) = await _service.LoginWithMessageAsync(model.EMPCD, model.Password, deviceType);
 
         if (user == null)
         {
             var fails = HttpContext.Session.GetInt32("LoginFails") ?? 0;
             fails++;
             HttpContext.Session.SetInt32("LoginFails", fails);
-            ModelState.AddModelError(string.Empty, fails >= 3
-                ? $"Sai tài khoản hoặc mật khẩu (lần {fails}). Nếu quên mật khẩu, vui lòng liên hệ phòng HR để được hỗ trợ."
-                : "Sai tài khoản hoặc mật khẩu.");
+            // API báo cụ thể (sắp bị khoá / đang tạm khoá / đã nghỉ việc — xem HR_api Helpers/LoginThrottle.cs) thì hiện
+            // đúng câu đó; câu chung "Sai tài khoản hoặc mật khẩu" thì giữ cách báo cũ.
+            bool specific = !string.IsNullOrWhiteSpace(apiMessage) && apiMessage.Trim() != "Sai tài khoản hoặc mật khẩu";
+            ModelState.AddModelError(string.Empty, specific ? apiMessage!
+                : fails >= 3
+                    ? $"Sai tài khoản hoặc mật khẩu (lần {fails}). Nếu quên mật khẩu, vui lòng liên hệ phòng HR để được hỗ trợ."
+                    : "Sai tài khoản hoặc mật khẩu.");
             return View(LoginViewName(), model);
         }
 

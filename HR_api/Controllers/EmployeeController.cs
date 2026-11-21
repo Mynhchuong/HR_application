@@ -448,6 +448,6 @@ public class EmployeeController : ControllerBase
     private async Task<bool> IsHrOrAdminAsync(string? empCd)
     {
         if (string.IsNullOrEmpty(empCd)) return false;
-        return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin", "HR");
+        return await DeptRoleHelper.HasAnyRoleAsync(_oracleService, empCd, "Admin", "HR", "CSR");   // CSR xem Toàn bộ nhân viên (2026-11-21)
     }
 }

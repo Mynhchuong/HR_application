@@ -21,6 +21,17 @@ public class AccountController : ControllerBase
         _oracleService = oracleService;
     }
 
+    // Sai mật khẩu: ghi 1 lần sai; sắp bị khoá thì báo còn mấy lần; đủ 5 lần → báo đã tạm khoá 15 phút
+    private IActionResult WrongPassword(string empcd)
+    {
+        var (remaining, until) = LoginThrottle.Fail(empcd);
+        if (until is DateTime u)
+            return Ok(new { success = false, locked = true, message = LoginThrottle.LockedMessage(u) });
+        return Ok(new { success = false, message = remaining <= 2
+            ? $"Sai tài khoản hoặc mật khẩu. Còn {remaining} lần thử, sai tiếp sẽ bị tạm khoá 15 phút."
+            : "Sai tài khoản hoặc mật khẩu" });
+    }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -28,6 +39,10 @@ public class AccountController : ControllerBase
         var password = request.Password;
         if (string.IsNullOrEmpty(empcd) || string.IsNullOrEmpty(password))
             return BadRequest(new { success = false, message = "Thiếu thông tin đăng nhập" });
+
+        // Chống dò mật khẩu: đang tạm khoá thì từ chối luôn, không đọc DB (xem Helpers/LoginThrottle.cs)
+        if (LoginThrottle.LockedUntil(empcd) is DateTime lockedUntil)
+            return Ok(new { success = false, locked = true, message = LoginThrottle.LockedMessage(lockedUntil) });
 
         string sql = @"
             SELECT 
@@ -77,6 +92,9 @@ public class AccountController : ControllerBase
             await _oracleService.ExecuteNonQueryAsync(
                 "UPDATE HRMS.HR_USERS SET IS_ACTIVE = 0, UPDT_ID = 'SYSTEM', UPDT_DT = SYSDATE WHERE EMPCD = :EMPCD AND IS_ACTIVE = 1",
                 new OracleParameter("EMPCD", empcd));
+            // Chỉ nói "đã nghỉ việc" khi nhập ĐÚNG mật khẩu — không thì người lạ dò được mã thẻ nào có thật / đã nghỉ
+            if (password != (userCheck.Password ?? "123456"))
+                return WrongPassword(empcd);
             return Ok(new { success = false, message = "Tài khoản này đã nghỉ việc" });
         }
 
@@ -104,7 +122,7 @@ public class AccountController : ControllerBase
 
             var du = directUser.FirstOrDefault();
             if (du == null || du.Password != password)
-                return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+                return WrongPassword(empcd);
             if (du.IsActive == 0)
                 return Ok(new { success = false, message = "Tài khoản này đã nghỉ việc" });
 
@@ -122,6 +140,7 @@ public class AccountController : ControllerBase
                 duLang = LangPrefHelper.IsSupported(duSaved) && duSaved != LangPrefHelper.Vi ? duSaved! : LangPrefHelper.En;
             }
 
+            LoginThrottle.Success(empcd);
             return Ok(new { success = true, data = new UserInfoModel {
                 Id = du.Id, EmpCd = du.EmpCd, FullName = du.FullName,
                 RoleId = du.RoleId, RoleName = du.RoleName,
@@ -176,7 +195,7 @@ public class AccountController : ControllerBase
             else
             {
                 // Nhập sai mật khẩu 123456 đối với user chưa có tài khoản
-                return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+                return WrongPassword(empcd);
             }
         }
         else
@@ -184,7 +203,7 @@ public class AccountController : ControllerBase
             // Đã có trong HR_USERS -> So sánh password
             if (userCheck.Password != password)
             {
-                return Ok(new { success = false, message = "Sai tài khoản hoặc mật khẩu" });
+                return WrongPassword(empcd);
             }
 
             if (userCheck.IsActive == 0)
@@ -268,6 +287,7 @@ public class AccountController : ControllerBase
             }
         }
 
+        LoginThrottle.Success(empcd);
         return Ok(new { success = true, data = result });
     }
 

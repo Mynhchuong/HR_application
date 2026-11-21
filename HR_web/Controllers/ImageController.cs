@@ -825,12 +825,23 @@ public class ImageController : BaseController
     }
 
     // ── Chữ ký ──────────────────────────────────────────────────────────────
+    // BẢO MẬT (2026-11-21): CHỈ được đổi chữ ký của CHÍNH MÌNH. Trước đây lấy empCd từ ô ẩn trong form → sửa
+    // ô đó là ghi đè chữ ký của người khác (chữ ký in trên đơn duyệt), còn gõ "..\" thì ghi file ra ngoài thư
+    // mục chữ ký. Giờ bỏ qua empCd gửi lên, luôn dùng mã của người đang đăng nhập (+ chỉ chữ/số).
     [HttpPost]
-    public async Task<IActionResult> UploadSignature(string empCd, IFormFile? file)
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadSignature(string? empCd, IFormFile? file)
     {
         bool isExpat = CurrentUser?.RoleName == "Expat";
 
-        if (string.IsNullOrWhiteSpace(empCd) || file == null || file.Length == 0)
+        empCd = CurrentUser?.EmpCd;
+        if (string.IsNullOrWhiteSpace(empCd) || !empCd.All(char.IsLetterOrDigit))
+        {
+            TempData["ErrorMessage"] = isExpat ? "Your session has expired. Please sign in again." : "Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại.";
+            return RedirectToAction("ProfileUser", "Profile");
+        }
+
+        if (file == null || file.Length == 0)
         {
             TempData["ErrorMessage"] = isExpat ? "Please select a file!" : "Chưa chọn file hoặc mã nhân viên trống!";
             return RedirectToAction("ProfileUser", "Profile");

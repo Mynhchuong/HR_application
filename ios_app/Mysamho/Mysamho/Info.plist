@@ -11,14 +11,14 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Mysamho cần dùng camera để bạn chụp ảnh hoặc quay video gửi cho HR trong hộp thư hội thoại, và quét mã vạch trên tem máy để báo máy hư.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Mysamho cần dùng microphone để bạn quay video có tiếng gửi cho HR.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Mysamho cần truy cập thư viện ảnh để bạn chọn ảnh hoặc video gửi cho HR.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Mysamho cần quyền lưu ảnh/video vào thư viện khi bạn tải file đính kèm về máy.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Mysamho dùng Face ID để đăng nhập lại nhanh, không cần gõ tay mật khẩu mỗi ngày.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mysamho cần dùng microphone để bạn quay video có tiếng gửi cho HR.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Mysamho cần quyền lưu ảnh/video vào thư viện khi bạn tải file đính kèm về máy.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mysamho cần truy cập thư viện ảnh để bạn chọn ảnh hoặc video gửi cho HR.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -38,5 +38,7 @@
 			</array>
 		</dict>
 	</dict>
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 </dict>
 </plist>

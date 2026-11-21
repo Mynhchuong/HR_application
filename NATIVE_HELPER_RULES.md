@@ -19,6 +19,10 @@ quả) — mọi trang web cần quét camera đều gọi lại đúng bridge n
 - `saveCredentials`/`clearCredentials` — chỉ 2 bridge, dùng được cho toàn bộ luồng đăng nhập Face
   ID/vân tay, không gắn với 1 trang cụ thể nào.
 - `setEmpcd` — generic "báo mã NV hiện tại cho native", không phải riêng cho tính năng ép cập nhật.
+- `nativeUI` — thông báo (toast) / xác nhận / alert / rung bằng giao diện gốc cho MỌI trang. Web không gọi
+  trực tiếp: `wwwroot/js/native-ui.js` tự bọc `showToast`/`showConfirm` có sẵn trong layout, trang nào dùng 2
+  hàm đó là tự native. Native: `NativeUi.java` (Snackbar + MaterialAlertDialog) / `NativeUI.swift` (banner +
+  UIAlertController). Thông báo mới cứ gọi `showToast`/`showConfirm`, KHÔNG tự viết modal/toast riêng.
 
 **Khi thêm bridge mới, luôn tự hỏi: "cái NÀY có phải chỉ con đường DỮ LIỆU (chuỗi, số, callback) hay
 đang lẫn cả LOGIC NGHIỆP VỤ vào native?"** Nếu có logic nghiệp vụ (vd "chỉ quét được khi đang ở màn

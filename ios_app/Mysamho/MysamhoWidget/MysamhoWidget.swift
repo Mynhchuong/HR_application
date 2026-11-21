@@ -44,7 +44,7 @@ struct Provider: TimelineProvider {
             let snap = await WidgetStore.fetch()
             // iOS tự quyết lúc nào chạy lại, 30 phút chỉ là mong muốn. Đường làm mới chính vẫn là
             // app gọi WidgetCenter.reloadAllTimelines (mở app, nhận thông báo đẩy).
-            let next = Calendar.current.date(byAdding: .minute, value: 30, to: Date())!
+            let next = Calendar.current.date(byAdding: .minute, value: 30, to: Date()) ?? Date().addingTimeInterval(1800)
             completion(Timeline(entries: [WidgetEntry(date: Date(), snap: snap)], policy: .after(next)))
         }
     }

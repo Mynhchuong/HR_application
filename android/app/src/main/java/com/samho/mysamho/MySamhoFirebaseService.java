@@ -37,7 +37,8 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
     @Override
     public void onMessageReceived(RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
-
+        // try toàn bộ (2026-11-21): chạy ngầm cả khi app không mở — lỗi ở đây hiện "My Samho đã dừng" giữa chừng.
+        try {
         String title = remoteMessage.getNotification() != null
             ? remoteMessage.getNotification().getTitle() : "My Samho";
         String body  = remoteMessage.getNotification() != null
@@ -55,6 +56,9 @@ public class MySamhoFirebaseService extends FirebaseMessagingService {
         // App đang mở (chỉ lúc này onMessageReceived mới chạy) -> báo WebView tự refresh badge ngay,
         // không cần NV F5/chuyển trang mới thấy số mới (yêu cầu 2026-10-26).
         MainActivity.notifyForegroundPush();
+        } catch (Exception e) {
+            android.util.Log.w("MySamhoFCM", "onMessageReceived failed", e);
+        }
     }
 
     private void showNotification(String title, String body, String linkAction, String notiId, String target) {

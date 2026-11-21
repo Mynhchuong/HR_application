@@ -9,6 +9,8 @@ class ViewController: UIViewController {
     // MARK: - UI Components
 
     private var webView: WKWebView!
+    /// Thông báo / xác nhận bằng giao diện gốc cho web (NativeUI.swift, bridge "nativeUI").
+    private lazy var nativeUI = NativeUIPresenter(host: self, webView: { [weak self] in self?.webView })
     private var progressBar: UIProgressView!
     private var noNetworkView: UIView!
 
@@ -32,7 +34,13 @@ class ViewController: UIViewController {
     // Chỉ tự thử Face ID 1 lần/phiên app, tránh hỏi lặp lại gây khó chịu nếu user bấm Huỷ.
     private var hasTriedBiometricLogin = false
 
+    #if DEBUG
+    // Chỉ bản Debug: chạy Simulator trỏ vào HR_web ở máy dev để thử tính năng web mới chưa deploy
+    // (launch env MYSAMHO_BASE_URL, vd http://127.0.0.1:5099). Bản phát hành luôn dùng địa chỉ thật.
+    private let appURL = ProcessInfo.processInfo.environment["MYSAMHO_BASE_URL"] ?? "https://hr.esamho.com/HR_Web"
+    #else
     private let appURL = "https://hr.esamho.com/HR_Web"
+    #endif
     private var overlayView: UIView?
     // Splash logo — che khoảng trắng chớp giữa lúc WebView bắt đầu tải và trang Home vẽ xong lần đầu
     // (progress bar mỏng không đủ rõ, cảm giác như app đứng hình — yêu cầu tối ưu UX 2026-10-26).
@@ -122,6 +130,10 @@ class ViewController: UIViewController {
     // MARK: - Startup Notice
 
     private func showStartupNotice() {
+        #if DEBUG
+        // Chỉ Debug: MYSAMHO_SKIP_NOTICE=1 → bỏ màn chào, tải web ngay (chạy thử tự động trên Simulator, không bấm được nút)
+        if ProcessInfo.processInfo.environment["MYSAMHO_SKIP_NOTICE"] != nil { startWebView(); return }
+        #endif
         let overlay = UIView(frame: view.bounds)
         overlay.backgroundColor = UIColor.black.withAlphaComponent(0.5)
         overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -383,6 +395,8 @@ class ViewController: UIViewController {
         // dưới); logoutForm (_Layout.cshtml) gọi clearCredentials lúc đăng xuất chủ động.
         config.userContentController.add(self, name: "saveCredentials")
         config.userContentController.add(self, name: "clearCredentials")
+        // Thông báo / xác nhận / rung bằng giao diện gốc — 1 bridge generic cho mọi trang (native-ui.js)
+        config.userContentController.add(self, name: "nativeUI")
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.translatesAutoresizingMaskIntoConstraints = false
@@ -769,7 +783,7 @@ class ViewController: UIViewController {
         }
         guard let url = URL(string: target) else { return }
         diagLog("loadWebApp -> \(target)")
-        webView.load(URLRequest(url: url))
+        webView?.load(URLRequest(url: url))   // ?. : chống crash nếu gọi trước khi WebView được tạo
     }
 
     /// App đang chạy sẵn, người dùng bấm nút tắt -> điều hướng ngay.
@@ -822,7 +836,7 @@ class ViewController: UIViewController {
     }
 
     @objc private func handleRefresh(_ sender: UIRefreshControl) {
-        webView.reload()
+        webView?.reload()
         // Đừng end ngay — để didFinish/didFail callback kết thúc spinner.
         // Safety timeout 5s tránh kẹt spinner nếu navigation không fire callback.
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak sender] in
@@ -835,7 +849,7 @@ class ViewController: UIViewController {
         pendingNotiId = AppDelegate.pendingNotiId
         AppDelegate.pendingNotiId = nil
         if webView != nil {
-            let url = URL(string: notificationURL())!
+            guard let url = URL(string: notificationURL()) else { return }   // không ép "!" — mã thông báo lạ không được làm crash app
             pendingNotiId = nil
             webView.load(URLRequest(url: url))
         } else {
@@ -1212,6 +1226,8 @@ extension ViewController: WKScriptMessageHandler {
                !empcd.isEmpty, !pwd.isEmpty {
                 pendingCredentials = KeychainCredentialHelper.Credentials(empcd: empcd, password: pwd)
             }
+        case "nativeUI":
+            nativeUI.handle(message.body)
         case "clearCredentials":
             bioLog("web goi clearCredentials  <-- ai do xoa mat khau da luu")
             KeychainCredentialHelper.clear()
@@ -1248,7 +1264,7 @@ extension ViewController {
 
     fileprivate func callWeb(_ function: String, _ argument: String) {
         let quoted = ViewController.jsStringLiteral(argument)
-        webView.evaluateJavaScript("if(window.\(function))window.\(function)(\(quoted));", completionHandler: nil)
+        webView?.evaluateJavaScript("if(window.\(function))window.\(function)(\(quoted));", completionHandler: nil)
     }
 
     // "x" -> "\"x\"" đã escape chuẩn JSON, an toàn chèn thẳng vào chuỗi JS evaluateJavaScript.

@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation(libs.swiperefreshlayout)   // Kéo xuống để tải lại (giống iOS)
     implementation(libs.play.services.code.scanner) // Quét mã vạch tem máy (TPM) bằng Google Code Scanner
     implementation(libs.biometric)        // Đăng nhập lại bằng vân tay/Face Unlock
     implementation(libs.security.crypto)  // EncryptedSharedPreferences — lưu mã NV/mật khẩu an toàn

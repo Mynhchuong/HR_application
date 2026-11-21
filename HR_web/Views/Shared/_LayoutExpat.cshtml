@@ -835,6 +835,8 @@
             if (lastBackdrop) lastBackdrop.style.zIndex = '1079';
         };
     </script>
+    @* Thông báo/xác nhận bằng giao diện gốc khi chạy trong app (phải nạp SAU showToast/showConfirm ở trên) *@
+    <script src="~/js/native-ui.js" asp-append-version="true" data-title="@T("Confirm", "확인")" data-ok="@T("Delete", "삭제")" data-cancel="@T("Cancel", "취소")"></script>
 
     <!-- Logout Modal -->
     <div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">

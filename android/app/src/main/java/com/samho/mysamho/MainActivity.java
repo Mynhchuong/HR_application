@@ -74,6 +74,8 @@ import org.json.JSONObject;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private NativeUi nativeUi;   // thông báo/xác nhận giao diện gốc cho web (NativeUi.java)
+    private androidx.swiperefreshlayout.widget.SwipeRefreshLayout swipeRefresh;   // kéo xuống để tải lại
     private LinearLayout layoutNoInternet;
     private View layoutSplash;
     private View splashGroup, splashDisc;
@@ -195,6 +197,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
         // Expose FCM token to web app via Android.getFcmToken()
+        nativeUi = new NativeUi(this, webView);
+        setupPullToRefresh();
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         
         webView.setWebViewClient(new WebViewClient() {
@@ -254,6 +258,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
                 super.onPageFinished(view, url);
                 dismissSplash();
                 // Nếu user tap notification khi app đang tắt → navigate tới trang thông báo sau khi load xong
@@ -287,6 +292,23 @@ public class MainActivity extends AppCompatActivity {
         });
         
         webView.setWebChromeClient(new WebChromeClient() {
+            // alert()/confirm()/prompt() của web: hộp thoại Material thay hộp mặc định "Trang tại http://... cho biết"
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, android.webkit.JsResult result) {
+                return nativeUi.jsAlert(message, result);
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, android.webkit.JsResult result) {
+                return nativeUi.jsConfirm(message, result);
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue,
+                                      android.webkit.JsPromptResult result) {
+                return nativeUi.jsPrompt(message, defaultValue, result);
+            }
+
             @Override
             public void onProgressChanged(WebView view, int newProgress) {
                 if (isFinishing() || isDestroyed()) return;
@@ -533,6 +555,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showNoInternetLayout() {
+        if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
         webView.setVisibility(View.GONE);
         layoutNoInternet.setVisibility(View.VISIBLE);
         dismissSplash();
@@ -895,7 +918,13 @@ public class MainActivity extends AppCompatActivity {
             grantUriPermission(getPackageName(), mCameraPhotoUri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             mCameraCaptureIsPhoto = true;
-            startActivityForResult(takePictureIntent, FILE_CHOOSER_RESULT_CODE);
+            // try: máy chặn/thiếu app camera ở lúc này vẫn có thể ném lỗi dù kiểm tra trước đó qua — huỷ chọn file thay vì crash
+            try {
+                startActivityForResult(takePictureIntent, FILE_CHOOSER_RESULT_CODE);
+            } catch (Exception e) {
+                cancelFileChooser();
+                Toast.makeText(this, "Không mở được camera", Toast.LENGTH_SHORT).show();
+            }
         } else {
             cancelFileChooser();
         }
@@ -971,7 +1000,12 @@ public class MainActivity extends AppCompatActivity {
             takeVideoIntent.putExtra(MediaStore.EXTRA_DURATION_LIMIT, 60);        // max 60s
             takeVideoIntent.putExtra(MediaStore.EXTRA_SIZE_LIMIT, 50L * 1024 * 1024); // 50MB
             mCameraCaptureIsPhoto = false;
-            startActivityForResult(takeVideoIntent, FILE_CHOOSER_RESULT_CODE);
+            try {
+                startActivityForResult(takeVideoIntent, FILE_CHOOSER_RESULT_CODE);
+            } catch (Exception e) {
+                cancelFileChooser();
+                Toast.makeText(this, "Không mở được camera", Toast.LENGTH_SHORT).show();
+            }
         } else {
             cancelFileChooser();
         }
@@ -1154,6 +1188,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showForceUpdateDialog(String latestVersion, String note, String updateUrl) {
+        if (isFinishing() || isDestroyed()) return;   // màn hình đã đóng mà vẫn show → BadTokenException (crash)
         new AlertDialog.Builder(this)
             .setTitle("Có bản cập nhật mới (v" + latestVersion + ")")
             .setMessage(note)
@@ -1206,6 +1241,24 @@ public class MainActivity extends AppCompatActivity {
     // Xem ghi chú ở bioLog() bên iOS — chỉ in ở bản Debug.
     // Không dùng BuildConfig.DEBUG vì AGP 8 mặc định không sinh lớp BuildConfig; đọc cờ debuggable
     // của chính app là đủ và không phải bật thêm tính năng build nào.
+    // Kéo xuống để tải lại — giống UIRefreshControl bên iOS (2026-11-21). Chỉ kéo được khi trang đang ở đầu
+    // VÀ web báo ngón tay không nằm trong 1 khung cuộn riêng/modal (NativeUi.pullAllowed, xem native-ui.js).
+    private void setupPullToRefresh() {
+        swipeRefresh = findViewById(R.id.swipeRefresh);
+        if (swipeRefresh == null) return;
+        swipeRefresh.setColorSchemeColors(0xFF6366F1, 0xFF8B5CF6);
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
+                webView == null || webView.getScrollY() > 0 || (nativeUi != null && !nativeUi.pullAllowed));
+        swipeRefresh.setOnRefreshListener(() -> {
+            if (webView == null || webView.getUrl() == null || !webView.getUrl().startsWith("http")) {
+                swipeRefresh.setRefreshing(false);
+                checkNetworkAndLoadUrl();
+            } else {
+                webView.reload();
+            }
+        });
+    }
+
     private boolean isAppDebuggable() {
         return (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
     }
@@ -1362,6 +1415,15 @@ public class MainActivity extends AppCompatActivity {
                 return m.requestPinAppWidget(cn, null, null);
             } catch (Throwable t) {
                 return false;
+            }
+        }
+
+        // Thông báo / xác nhận / rung bằng giao diện GỐC — 1 bridge generic cho mọi trang (native-ui.js, NativeUi.java)
+        @android.webkit.JavascriptInterface
+        public void nativeUI(String json) {
+            if (mContext instanceof MainActivity) {
+                MainActivity a = (MainActivity) mContext;
+                if (a.nativeUi != null) a.nativeUi.handle(json);
             }
         }
 

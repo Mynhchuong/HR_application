@@ -37,7 +37,8 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
 
     @Override
     public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-        renderAll(ctx, false);          // vẽ ngay bằng dữ liệu đã lưu, không bắt người dùng chờ mạng
+        // Widget chạy trong launcher ngay cả khi app đóng — lỗi vẽ/đọc dữ liệu không được làm crash app (2026-11-21)
+        try { renderAll(ctx, false); } catch (Exception e) { android.util.Log.w("MySamhoWidget", "render failed", e); }
         refreshThenRender(ctx);
     }
 
@@ -57,11 +58,16 @@ public class MySamhoWidgetProvider extends AppWidgetProvider {
     private void refreshThenRender(Context ctx) {
         final Context app = ctx.getApplicationContext();
         IO.execute(() -> {
-            WidgetData.refreshBlocking(app);
-            renderAll(app, true);
-            // Nút tắt giữ icon app đặt theo role, mà role nằm trong chính bản chụp vừa lấy về —
-            // làm mới chung một lượt, khỏi gọi mạng lần nữa.
-            AppShortcuts.refresh(app);
+            try {
+                WidgetData.refreshBlocking(app);
+                renderAll(app, true);
+                // Nút tắt giữ icon app đặt theo role, mà role nằm trong chính bản chụp vừa lấy về —
+                // làm mới chung một lượt, khỏi gọi mạng lần nữa.
+                AppShortcuts.refresh(app);
+            } catch (Exception e) {
+                // Lỗi ở luồng nền không bắt sẽ giết cả tiến trình app (2026-11-21)
+                android.util.Log.w("MySamhoWidget", "refresh failed", e);
+            }
         });
     }
 

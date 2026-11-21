@@ -352,6 +352,26 @@ public class LeaveService
         catch (Exception ex) { return new LeaveListPagedResponse { success = false, message = ex.Message, data = new() }; }
     }
 
+    // Sắp lịch nghỉ: NV trong phạm vi phân trang bằng SQL (HR_api LeaveController.GetAssignEmps) — trả nguyên JSON
+    public async Task<string> GetAssignEmpsRawAsync(string approverEmpcd, string? search, string? dept, string? line,
+        string? work, int page, int pageSize, bool all)
+    {
+        var q = new List<string> { $"approver_empcd={Uri.EscapeDataString(approverEmpcd)}", $"page={page}", $"page_size={pageSize}" };
+        if (!string.IsNullOrWhiteSpace(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrWhiteSpace(dept))   q.Add($"dept={Uri.EscapeDataString(dept)}");
+        if (!string.IsNullOrWhiteSpace(line))   q.Add($"line={Uri.EscapeDataString(line)}");
+        if (!string.IsNullOrWhiteSpace(work))   q.Add($"work={Uri.EscapeDataString(work)}");
+        if (all) q.Add("all=1");
+        var res = await _api.GetAsync_Raw("leave/assign-emps", string.Join("&", q));
+        return res?.IsSuccessStatusCode == true ? await res.Content.ReadAsStringAsync() : "{\"success\":false,\"message\":\"Lỗi kết nối\"}";
+    }
+
+    public async Task<string> GetAssignEmpFiltersRawAsync(string approverEmpcd)
+    {
+        var res = await _api.GetAsync_Raw("leave/assign-emp-filters", $"approver_empcd={Uri.EscapeDataString(approverEmpcd)}");
+        return res?.IsSuccessStatusCode == true ? await res.Content.ReadAsStringAsync() : "{\"success\":false,\"data\":[]}";
+    }
+
     public async Task<object?> GetAnnualLeaveBalanceAsync(string approverEmpcd)
     {
         try

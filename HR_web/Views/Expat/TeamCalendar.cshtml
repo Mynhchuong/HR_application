@@ -513,7 +513,7 @@ function buildScheduleRow(item, idx, today) {
         : `<span class="text-xs text-muted">—</span>`;
     return `<tr class="${rowClass}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
-        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm text-nowrap" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}">${escHtml(item.EMPCD||'')}</td>
         <td class="px-2"><div class="text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}${activeBadge}</div>${deptLine}</td>
         <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
         <td class="px-2">${srcBadge}</td>
@@ -648,7 +648,7 @@ function buildGpRow(item, idx) {
     const gpColor = GP_TYPE_COLOR[item.GP_TYPE] || 'secondary';
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
-        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm text-nowrap" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}">${escHtml(item.EMPCD||'')}</td>
         <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
         <td class="px-2"><span class="badge bg-${gpColor}">${gpLabel}</span></td>
         <td class="px-2 text-sm text-nowrap">${formatTime(item.OUT_TIME)}</td>
@@ -772,7 +772,7 @@ function renderTraining() {
         tbody.innerHTML += `
             <tr>
                 <td class="px-2 text-xs text-secondary">${idx + 1}</td>
-                <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+                <td class="px-2 text-sm text-nowrap" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}">${escHtml(item.EMPCD||'')}</td>
                 <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
                 <td class="px-2"><div class="text-sm">${escHtml(item.COURSE_TITLE||'')}</div><div class="text-xs text-secondary">${escHtml(item.CLASS_NAME||'')}</div></td>
                 <td class="px-2 text-sm">Session ${item.SESSION_NO}</td>

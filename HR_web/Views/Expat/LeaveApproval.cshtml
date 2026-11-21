@@ -318,7 +318,7 @@ function buildRow(item, idx) {
     return `<tr class="${isStale ? 'row-stale-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2 text-sm">
-            <div class="d-flex align-items-center flex-wrap gap-1">
+            <div class="d-flex align-items-center flex-wrap gap-1" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}">
                 <span class="badge bg-light text-dark border px-2 py-1">${escHtml(item.EMPCD||'')}</span>
                 <span class="emp-name vni-font fw-bold" style="text-transform:uppercase;font-size:.85rem;">${escHtml(item.EMP_NAME||'')}</span>
             </div>

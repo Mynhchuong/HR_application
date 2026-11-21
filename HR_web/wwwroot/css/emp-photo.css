@@ -1,0 +1,92 @@
+/* ================================================================
+   emp-photo.css — ảnh nhân viên ở các trang duyệt (xem wwwroot/js/emp-photo.js)
+   Chỉ có tác dụng khi <html data-ep-on="1"> (Cài đặt → "Hiện ảnh nhân viên").
+   ================================================================ */
+
+/* ── Ảnh trong ô bảng (web) ───────────────────────────────────── */
+.ep-av {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; width: 40px; height: 40px; padding: 0; margin: -6px 10px -6px 0;
+    vertical-align: middle; border: 0; border-radius: 50%; overflow: hidden; cursor: zoom-in;
+    background: linear-gradient(135deg, #e0e7ff, #f1f5f9);
+    box-shadow: 0 0 0 2px #fff, 0 1px 4px rgba(15, 23, 42, .18);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.ep-av:hover { transform: scale(1.08); box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(99, 102, 241, .35); }
+.ep-av:focus-visible { outline: 0; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #6366f1; }
+.ep-av img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; object-position: 50% 22%;   /* ảnh thẻ: mặt nằm phía trên */
+    opacity: 0; transition: opacity .25s ease;
+}
+.ep-av img.ep-ok { opacity: 1; }
+.ep-av .ep-ph { width: 58%; height: 58%; color: #94a3b8; }   /* hình người khi không có ảnh */
+
+/* ── Ảnh trong thẻ mobile (mobile-table.js): khổ ảnh thẻ dọc, to hơn để nhận mặt ── */
+.ep-av.ep-av--card {
+    width: 48px; height: 60px; margin: 0; border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, .06), 0 2px 6px rgba(15, 23, 42, .12);
+}
+.ep-av.ep-av--card:active { transform: scale(.94); }
+.mt-card.mt-card--photo { padding-left: 10px; }
+
+/* ── Xem ảnh to ───────────────────────────────────────────────── */
+.ep-lb { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.ep-lb[hidden] { display: none; }
+.ep-lb-bg { position: absolute; inset: 0; background: rgba(15, 23, 42, .62); opacity: 0; transition: opacity .22s ease; }
+.ep-lb-card {
+    position: relative; width: min(320px, calc(100vw - 48px)); padding: 14px 14px 16px;
+    background: #fff; border-radius: 22px; text-align: center;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, .35);
+    opacity: 0; transform: scale(.92); transition: opacity .22s ease, transform .26s cubic-bezier(.32, .72, 0, 1);
+}
+.ep-lb.ep-in .ep-lb-bg { opacity: 1; }
+.ep-lb.ep-in .ep-lb-card { opacity: 1; transform: none; }
+.ep-lb-photo {
+    position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden;
+    background: linear-gradient(135deg, #eef2ff, #f8fafc);
+}
+.ep-lb-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 25%; }
+.ep-lb-photo img.ep-lo { filter: blur(6px); transform: scale(1.04); }   /* ảnh nhỏ hiện trước, ảnh nét thay vào sau */
+.ep-lb-none {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; color: #94a3b8; font-size: .85rem; font-weight: 600;
+}
+.ep-lb-none svg { width: 38%; height: auto; }
+.ep-lb-name {
+    margin-top: 12px; font-size: 1.15rem; font-weight: 700; color: #0f172a; line-height: 1.25;
+    text-transform: uppercase; word-break: break-word;
+}
+.ep-lb-code {
+    display: inline-block; margin-top: 6px; padding: 3px 12px; border-radius: 999px;
+    background: #ede9fe; color: #5b21b6; font-size: .9rem; font-weight: 800; letter-spacing: .06em;
+}
+.ep-lb-x {
+    position: absolute; top: 20px; right: 20px; z-index: 1; width: 34px; height: 34px; border: 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15, 23, 42, .55); color: #fff; font-size: 20px; line-height: 1; cursor: pointer;
+}
+.ep-lb-x:focus { outline: 0; }
+.ep-lb-x:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, .9); }
+.ep-lb-grab { display: none; }
+
+/* Điện thoại: tấm trượt từ dưới lên, kéo xuống để đóng */
+@media (max-width: 767.98px) {
+    .ep-lb { align-items: flex-end; }
+    .ep-lb-card {
+        width: 100%; max-width: 440px; border-radius: 24px 24px 0 0;
+        padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
+        transform: translateY(100%); opacity: 1;
+        transition: transform .32s cubic-bezier(.32, .72, 0, 1);
+    }
+    .ep-lb.ep-in .ep-lb-card { transform: translateY(var(--ep-drag, 0px)); }
+    .ep-lb.ep-drag .ep-lb-card { transition: none; }
+    .ep-lb-grab { display: block; width: 40px; height: 5px; margin: 0 auto 10px; border-radius: 999px; background: #cbd5e1; }
+    .ep-lb-photo { width: min(72vw, 300px); margin: 0 auto; }
+    .ep-lb-x { top: 22px; right: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ep-av, .ep-av img, .ep-lb-bg, .ep-lb-card { transition: none !important; }
+}

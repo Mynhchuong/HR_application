@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using HR_web.Models.Account;
 using Newtonsoft.Json;
 
@@ -135,6 +136,29 @@ public class AccountService
     public async Task<bool> SetLangPrefAsync(string empCd, string lang)
     {
         var response = await _api.PostAsync("Account/set-lang-pref", new { EmpCd = empCd, Lang = lang });
+        var result = await ParseResponse<object>(response);
+        return result != null && result.success;
+    }
+
+    // "Hiện ảnh nhân viên ở trang duyệt" — HR_USERS.SHOW_EMP_PHOTO (xem HR_api/Helpers/EmpPhotoPrefHelper.cs).
+    // available = false: DB chưa có cột → trang Cài đặt ẩn công tắc. show = null: NV chưa tự chọn.
+    public async Task<(bool available, bool? show)> GetEmpPhotoPrefAsync(string empCd)
+    {
+        try
+        {
+            var res = await _api.GetAsync_Raw("Account/emp-photo-pref", $"empcd={Uri.EscapeDataString(empCd)}");
+            if (res?.IsSuccessStatusCode != true) return (false, null);
+            var j = Newtonsoft.Json.Linq.JObject.Parse(await res.Content.ReadAsStringAsync());
+            var showTok = j["show"];
+            return (j["available"]?.Value<bool>() ?? false,
+                    showTok == null || showTok.Type == Newtonsoft.Json.Linq.JTokenType.Null ? null : showTok.Value<bool>());
+        }
+        catch { return (false, null); }
+    }
+
+    public async Task<bool> SetEmpPhotoPrefAsync(string empCd, bool show)
+    {
+        var response = await _api.PostAsync("Account/set-emp-photo-pref", new { EmpCd = empCd, Show = show });
         var result = await ParseResponse<object>(response);
         return result != null && result.success;
     }

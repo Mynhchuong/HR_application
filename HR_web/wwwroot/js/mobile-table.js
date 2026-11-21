@@ -119,7 +119,14 @@
             var cells = tr.querySelectorAll('td');
             if (!cells.length) return;
 
-            var get = function (i) { return cells[i] ? cells[i].innerHTML : ''; };
+            // Bỏ ảnh NV emp-photo.js đã chèn trong ô bảng (thẻ có chỗ ảnh riêng, xem bên dưới)
+            var get = function (i) {
+                if (!cells[i]) return '';
+                if (!cells[i].querySelector('.ep-av')) return cells[i].innerHTML;
+                var c = cells[i].cloneNode(true);
+                Array.prototype.forEach.call(c.querySelectorAll('.ep-av'), function (n) { n.remove(); });
+                return c.innerHTML;
+            };
 
             var codeHtml  = codeCols.map(function (c) {
                 return '<span class="mt-chip">' + get(c.index) + '</span>';
@@ -140,9 +147,16 @@
             var headerRow  = (codeHtml || nameHtml) ? '<div class="mt-header-row">' + codeHtml + nameHtml + '</div>' : '';
             var badgesRow  = badgesHtml ? '<div class="mt-badges-row">' + badgesHtml + '</div>' : '';
 
+            // Ảnh NV (Cài đặt → "Hiện ảnh nhân viên", xem emp-photo.js): ô nào có data-emp-photo thì
+            // thẻ có ảnh thẻ dọc bên trái — người duyệt nhận mặt nhanh hơn đọc tên/mã.
+            var photoEl  = window.HrEmpPhoto && window.HrEmpPhoto.enabled() ? tr.querySelector('[data-emp-photo]') : null;
+            var photoHtml = photoEl
+                ? window.HrEmpPhoto.avatarHtml(photoEl.getAttribute('data-emp-photo'), photoEl.getAttribute('data-emp-name'), 'ep-av--card')
+                : '';
+
             var card = document.createElement('div');
-            card.className   = 'mt-card';
-            card.innerHTML   =
+            card.className   = 'mt-card' + (photoHtml ? ' mt-card--photo' : '');
+            card.innerHTML   = photoHtml +
                 '<div class="mt-card-body">' + headerRow + badgesRow + '</div>' +
                 '<button class="mt-more-btn" aria-label="Chi tiết"><i class="bi bi-chevron-right"></i></button>';
 

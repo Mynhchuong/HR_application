@@ -316,8 +316,10 @@ function buildSuppRow(item, idx) {
         ${checkboxCell}
         <td class="text-xs text-secondary">${idx}</td>
         <td>
+            <div class="d-flex align-items-center" data-emp-photo="${escHtml(item.EMPCD)}" data-emp-name="${escHtml(item.EMP_NAME||'')}"><div style="min-width:0">
             <div class="text-xs text-secondary">${escHtml(item.EMPCD)}</div>
             <div class="text-sm vni-font fw-bold">${escHtml(item.EMP_NAME||'')}</div>
+            </div></div>
         </td>
         <td class="text-sm text-nowrap">${formatDate(item.WORK_DATE)}</td>
         <td class="text-xxs vni-font text-secondary" style="line-height:1.3;">
@@ -425,8 +427,10 @@ function buildRow(item, idx) {
         <td class="text-center"><input type="checkbox" class="att-save-chk" data-empcd="${escHtml(item.EMPCD)}" data-workdate="${escHtml(item.WORK_DATE)}" ${canRequest ? '' : 'disabled'} onchange="updateSelCount()"></td>
         <td class="text-xs text-secondary">${idx}</td>
         <td>
+            <div class="d-flex align-items-center" data-emp-photo="${escHtml(item.EMPCD)}" data-emp-name="${escHtml(item.EMP_NAME||'')}"><div style="min-width:0">
             <div class="text-xs text-secondary">${escHtml(item.EMPCD)}</div>
-            <div class="text-sm vni-font fw-bold">${escHtml(item.EMP_NAME)}</div>
+            <div class="text-sm vni-font fw-bold">${escHtml(item.EMP_NAME||'')}</div>
+            </div></div>
         </td>
         <td class="text-sm text-nowrap">${formatDate(item.WORK_DATE)}</td>
         <td class="text-xxs vni-font text-secondary" style="line-height:1.3;">

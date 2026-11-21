@@ -46,6 +46,11 @@ public static class AuthHelper
             CookieAuthenticationDefaults.AuthenticationScheme,
             principal,
             authProperties);
+
+        // SignInAsync chỉ ghi cookie, KHÔNG đổi User của request đang chạy. Token antiforgery gắn với danh tính
+        // (băm toàn bộ claim) → nếu cùng request này còn vẽ view / cấp token mới (vd Settings/Index đồng bộ phiên,
+        // Settings/SetEmpPhoto trả token mới) thì phải theo danh tính MỚI, không thì lần bấm kế tiếp bị 400.
+        httpContext.User = principal;
     }
 
     

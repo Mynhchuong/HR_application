@@ -20,6 +20,9 @@ public class UserInfoModel
     /// <summary>Ngôn ngữ giao diện: "vi" (mặc định mọi role) | "en" | "ko" (chỉ role Expat — suy từ ECM100.NATION
     /// lúc login, NV tự đổi được thì lưu HR_USERS.LANG_PREF). Xem Helpers/LangPrefHelper.cs.</summary>
     public string Lang { get; set; } = "vi";
+    /// <summary>Hiện ảnh NV ở các trang duyệt — HR_USERS.SHOW_EMP_PHOTO; null = chưa chọn (HR_web tính mặc định theo role).
+    /// Xem Helpers/EmpPhotoPrefHelper.cs.</summary>
+    public bool? ShowEmpPhoto { get; set; }
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
     public DateTime? LastPwdReset { get; set; }
@@ -186,4 +189,11 @@ public class UserInfoPagedViewModel
     public int page { get; set; }
     public int pageSize { get; set; }
     public int totalPage { get; set; }
+}
+
+/// <summary>Bật/tắt "Hiện ảnh nhân viên ở trang duyệt" — xem Helpers/EmpPhotoPrefHelper.cs.</summary>
+public class SetEmpPhotoPrefRequest
+{
+    public string EmpCd { get; set; } = string.Empty;
+    public bool   Show  { get; set; }
 }

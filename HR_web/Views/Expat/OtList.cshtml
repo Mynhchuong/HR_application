@@ -147,7 +147,7 @@ function buildRow(item, idx) {
 
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
-        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm text-nowrap" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}">${escHtml(item.EMPCD||'')}</td>
         <td class="px-2 text-sm emp-name vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
         <td class="px-2 text-sm d-none d-md-table-cell">${escHtml(item.LINE_NAME||'')}</td>
         <td class="px-2 text-sm d-none d-md-table-cell">${escHtml(item.WORK_NAME||'')}</td>

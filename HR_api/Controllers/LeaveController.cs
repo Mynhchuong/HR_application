@@ -2238,6 +2238,152 @@ END;";
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // SẮP LỊCH NGHỈ — danh sách NV trong phạm vi, PHÂN TRANG BẰNG SQL (2026-11-21)
+    // Trước đây trang Leave/TeamSchedule tải 1 lần TOÀN BỘ NV trong phạm vi (dropdown/emp-by-scope) + phép năm
+    // của TẤT CẢ (annual-balance) rồi lọc/phân trang ở trình duyệt → phạm vi vài trăm NV là chậm.
+    //
+    // GET /apiHR/Leave/assign-emps?approver_empcd=&search=&dept=&line=&work=&page=&page_size=
+    //     → 1 trang NV (+ phép năm còn lại CHỈ của NV trong trang), total để phân trang.
+    // GET ... &all=1 → MỌI NV khớp bộ lọc (mã, tên, phép còn lại) — cho nút "Chọn tất cả".
+    // GET /apiHR/Leave/assign-emp-filters?approver_empcd= → bộ phận / line / nhóm trong phạm vi (cho 3 ô lọc).
+    // Phạm vi + điều kiện "đang làm" giữ y hệt emp-by-scope / annual-balance; bỏ chính người sắp lịch
+    // (quản lý không tự sắp lịch cho mình — LeaveController.Assign cũng chặn).
+    // ─────────────────────────────────────────────────────────────────────────
+    [HttpGet("assign-emps")]
+    public async Task<IActionResult> GetAssignEmps(string approver_empcd, string? search = null,
+        string? dept = null, string? line = null, string? work = null, int page = 1, int page_size = 30, int all = 0)
+    {
+        try
+        {
+            if (!Helpers.OTScopeFilterHelper.IsAuthorized(approver_empcd))
+                return Ok(new { success = false, message = "Chưa đăng nhập" });
+            page      = Math.Max(1, page);
+            page_size = Math.Clamp(page_size, 10, 100);
+
+            var ps = new List<OracleParameter> { new("APPROVER", approver_empcd), new("APPROVER2", approver_empcd) };
+            var sb = new StringBuilder(@"
+                FROM HRMS.ECM100 EC
+                LEFT JOIN HRMS.EAM410 EA ON EA.DEPTCD = EC.DEPTCD AND EA.LINECD = EC.LINECD AND EA.WORKCD = EC.WORKCD
+                WHERE EC.JEAJIKGB = 'Y'
+                  AND (EC.RETDAT IS NULL OR EC.RETDAT > TO_CHAR(SYSDATE,'YYYYMMDD'))
+                  AND (EC.DEPTCD, EC.LINECD, EC.WORKCD) IN (
+                      SELECT DEPTCD, LINECD, WORKCD FROM HRMS.HR_USERS_DEPT WHERE EMPCD = :APPROVER)
+                  AND EC.EMPCD <> :APPROVER2");
+            if (!string.IsNullOrWhiteSpace(dept)) { sb.Append(" AND EC.DEPTCD = :F_DEPT"); ps.Add(new("F_DEPT", dept.Trim())); }
+            if (!string.IsNullOrWhiteSpace(line)) { sb.Append(" AND EC.LINECD = :F_LINE"); ps.Add(new("F_LINE", line.Trim())); }
+            if (!string.IsNullOrWhiteSpace(work)) { sb.Append(" AND EC.WORKCD = :F_WORK"); ps.Add(new("F_WORK", work.Trim())); }
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                sb.Append(" AND (UPPER(EC.EMPCD) LIKE :F_Q1 OR UPPER(EC.CNAME) LIKE :F_Q2)");
+                var q = "%" + search.Trim().ToUpperInvariant() + "%";
+                ps.Add(new("F_Q1", q)); ps.Add(new("F_Q2", q));
+            }
+            string fromWhere = sb.ToString();
+            const string orderBy = " ORDER BY EA.DEPTNM, EA.TEAMNM, EA.WORKNM, EC.CNAME, EC.EMPCD";
+
+            OracleParameter[] Clone() => ps.Select(p => new OracleParameter(p.ParameterName, p.Value)).ToArray();
+
+            // "Chọn tất cả": chỉ mã + tên + phép còn lại của mọi NV khớp lọc
+            if (all == 1)
+            {
+                var rowsAll = await _oracleService.ExecuteQueryAsync(
+                    "SELECT EC.EMPCD, EC.CNAME" + fromWhere + orderBy,
+                    r => new { empcd = r["EMPCD"]?.ToString() ?? "", name = r["CNAME"]?.ToString() ?? "" }, Clone());
+                var balAll = await LoadAnnualLeftAsync(rowsAll.Select(x => x.empcd).ToList());
+                return Ok(new
+                {
+                    success = true, total = rowsAll.Count,
+                    data = rowsAll.Select(x => new { x.empcd, x.name, LEFT_NUM = balAll.TryGetValue(x.empcd, out var l) ? l : (int?)null })
+                });
+            }
+
+            var total = (await _oracleService.ExecuteQueryAsync(
+                "SELECT COUNT(*) CNT" + fromWhere, r => Convert.ToInt32(r["CNT"]), Clone())).FirstOrDefault();
+
+            // Oracle 10g: phân trang bằng ROWNUM (không có OFFSET/FETCH)
+            var pagePs = Clone().ToList();
+            pagePs.Add(new OracleParameter("HI", page * page_size));
+            pagePs.Add(new OracleParameter("LO", (page - 1) * page_size));
+            var rows = await _oracleService.ExecuteQueryAsync($@"
+                SELECT * FROM (
+                    SELECT P.*, ROWNUM RN FROM (
+                        SELECT EC.EMPCD, EC.CNAME, EA.DEPTNM, EA.TEAMNM, EA.WORKNM{fromWhere}{orderBy}
+                    ) P WHERE ROWNUM <= :HI
+                ) WHERE RN > :LO",
+                r => new
+                {
+                    empcd     = r["EMPCD"]?.ToString() ?? "",
+                    name      = r["CNAME"]?.ToString() ?? "",
+                    dept_name = r["DEPTNM"]?.ToString(),
+                    line_name = r["TEAMNM"]?.ToString(),
+                    work_name = r["WORKNM"]?.ToString()
+                }, pagePs.ToArray());
+
+            var bal = await LoadAnnualLeftAsync(rows.Select(x => x.empcd).ToList());
+            return Ok(new
+            {
+                success = true, total, page, page_size,
+                total_pages = (int)Math.Ceiling(total / (double)page_size),
+                data = rows.Select(x => new { x.empcd, x.name, x.dept_name, x.line_name, x.work_name,
+                                              LEFT_NUM = bal.TryGetValue(x.empcd, out var l) ? l : (int?)null })
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    [HttpGet("assign-emp-filters")]
+    public async Task<IActionResult> GetAssignEmpFilters(string approver_empcd)
+    {
+        try
+        {
+            if (!Helpers.OTScopeFilterHelper.IsAuthorized(approver_empcd))
+                return Ok(new { success = false, message = "Chưa đăng nhập" });
+            var rows = await _oracleService.ExecuteQueryAsync(@"
+                SELECT DISTINCT UD.DEPTCD, EA.DEPTNM, UD.LINECD, EA.TEAMNM, UD.WORKCD, EA.WORKNM
+                FROM HRMS.HR_USERS_DEPT UD
+                LEFT JOIN HRMS.EAM410 EA ON EA.DEPTCD = UD.DEPTCD AND EA.LINECD = UD.LINECD AND EA.WORKCD = UD.WORKCD
+                WHERE UD.EMPCD = :APPROVER
+                ORDER BY EA.DEPTNM, EA.TEAMNM, EA.WORKNM",
+                r => new
+                {
+                    dept = r["DEPTCD"]?.ToString(), dept_name = r["DEPTNM"]?.ToString(),
+                    line = r["LINECD"]?.ToString(), line_name = r["TEAMNM"]?.ToString(),
+                    work = r["WORKCD"]?.ToString(), work_name = r["WORKNM"]?.ToString()
+                }, new OracleParameter("APPROVER", approver_empcd));
+            return Ok(new { success = true, data = rows });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    /// <summary>Phép năm còn lại (năm nay) của danh sách NV — cùng công thức annual-balance. Chia lô 900 (giới hạn IN của Oracle).</summary>
+    private async Task<Dictionary<string, int>> LoadAnnualLeftAsync(List<string> empcds)
+    {
+        var recv = new Dictionary<string, int>();
+        var used = new Dictionary<string, int>();
+        foreach (var chunk in empcds.Where(x => !string.IsNullOrEmpty(x)).Distinct().Chunk(900))
+        {
+            var inList = string.Join(",", chunk.Select((_, i) => ":E" + i));
+            OracleParameter[] Ps() => chunk.Select((e, i) => new OracleParameter("E" + i, e)).ToArray();
+            foreach (var (k, v) in await _oracleService.ExecuteQueryAsync($@"
+                SELECT EMPCD, MAX(RECEIVE_NUM) R FROM HRMS.EFM100
+                WHERE SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY') AND EMPCD IN ({inList})
+                GROUP BY EMPCD",
+                r => (r["EMPCD"]?.ToString() ?? "", r["R"] == DBNull.Value ? 0 : Convert.ToInt32(r["R"])), Ps()))
+                recv[k] = v;
+            foreach (var (k, v) in await _oracleService.ExecuteQueryAsync($@"
+                SELECT EMPCD, COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) U
+                FROM HRMS.EFM410
+                WHERE TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY') AND EMPCD IN ({inList})
+                GROUP BY EMPCD",
+                r => (r["EMPCD"]?.ToString() ?? "", Convert.ToInt32(r["U"])), Ps()))
+                used[k] = v;
+        }
+        // Giống annual-balance: NV trong phạm vi luôn có số (chưa cấp phép năm = 0 - đã dùng)
+        return empcds.Where(x => !string.IsNullOrEmpty(x)).Distinct()
+                     .ToDictionary(e => e, e => (recv.TryGetValue(e, out var r) ? r : 0) - (used.TryGetValue(e, out var u) ? u : 0));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // GET /apiHR/Leave/my-balance?empcd= — Số ngày phép năm của 1 nhân viên
     // ─────────────────────────────────────────────────────────────────────────
     [HttpGet("my-balance")]

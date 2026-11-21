@@ -4432,3 +4432,15 @@ ALTER TABLE HRMS.HR_INQUIRY_CANNED_REPLY ADD TARGET_ROLES VARCHAR2(60);
 COMMENT ON COLUMN HRMS.HR_INQUIRY_CANNED_REPLY.TARGET_ROLES IS 'CSV ROLE_NAME (HR,Admin,CSR) duoc dung mau nay; NULL = dung chung cho ca 3 role';
 
 -- Đã chèn 3 mẫu demo minh họa, mỗi role 1 cái (ID 8=HR, 9=Admin, 10=CSR).
+
+
+-- ============================================================
+-- HIỆN ẢNH NHÂN VIÊN Ở TRANG DUYỆT (ADDED 21/11/2026) — CHƯA CHẠY
+-- Công tắc ở Cài đặt (Settings/Index). 1 = hiện, 0 = tắt,
+-- NULL = chưa chọn → theo role: Expat hiện, quản lý người Việt tắt.
+-- Chưa chạy thì công tắc tự ẩn, Expat vẫn thấy ảnh theo mặc định.
+-- Xem HR_api/Helpers/EmpPhotoPrefHelper.cs, HR_web/wwwroot/js/emp-photo.js
+-- ============================================================
+
+ALTER TABLE HRMS.HR_USERS ADD SHOW_EMP_PHOTO NUMBER(1);
+COMMENT ON COLUMN HRMS.HR_USERS.SHOW_EMP_PHOTO IS '1=hien anh NV o trang duyet, 0=tat, NULL=theo role (Expat bat)';

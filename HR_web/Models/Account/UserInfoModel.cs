@@ -39,6 +39,10 @@ public class UserInfoModel
     /// <summary>true khi đang hiển thị tiếng Hàn.</summary>
     [Newtonsoft.Json.JsonIgnore]
     public bool IsKo => UiLang == "ko";
+
+    /// <summary>Hiện ảnh NV ở các trang duyệt — HR_USERS.SHOW_EMP_PHOTO, HR_api đọc lúc đăng nhập.
+    /// null = chưa tự chọn → theo role (xem EmpPhotoOn). Lưu trong cookie phiên, các trang không hỏi DB.</summary>
+    public bool? ShowEmpPhoto { get; set; }
     public int IsActive { get; set; }
     public DateTime? LastedLogin { get; set; }
     public DateTime? LastPwdReset { get; set; }
@@ -61,6 +65,20 @@ public class UserInfoModel
 /// </summary>
 public static class UserRoleExtensions
 {
+    /// <summary>Role có duyệt / quản lý người khác → mới có khái niệm "xem ảnh NV ở trang duyệt" (và thấy công tắc ở Cài đặt).</summary>
+    private static readonly string[] EmpPhotoRoles =
+        { "Supervisor", "DeputyManager", "Manager", "Expat", "Clerk", "HR", "CSR", "Admin", "Assistant" };
+
+    public static bool CanUseEmpPhoto(this UserInfoModel? user) => user.HasAnyRole(EmpPhotoRoles);
+
+    /// <summary>
+    /// Có hiện ảnh NV ở các trang duyệt không (yêu cầu 2026-11-21): NV đã tự chọn ở Cài đặt thì theo đó;
+    /// chưa chọn thì Expat mặc định HIỆN (quản lý nhiều người, khó nhớ tên/mã), quản lý người Việt mặc định TẮT.
+    /// </summary>
+    public static bool EmpPhotoOn(this UserInfoModel? user) =>
+        user.CanUseEmpPhoto()
+        && (user!.ShowEmpPhoto ?? string.Equals(user.RoleName, "Expat", StringComparison.OrdinalIgnoreCase));
+
     public static bool HasRole(this UserInfoModel? user, string role) =>
         user != null && (string.Equals(user.RoleName, role, StringComparison.Ordinal)
                       || string.Equals(user.DeptRoleName, role, StringComparison.Ordinal));

@@ -11,6 +11,8 @@
     bool pushMuted     = ViewBag.PushMuted == true;
     bool isExpat       = me?.IsExpatUi == true;
     bool isKo          = uiLang == "ko";
+    bool photoAvailable = ViewBag.EmpPhotoAvailable == true;
+    bool photoOn        = ViewBag.EmpPhotoOn == true;
 
     ViewData["Title"] = L("Cài đặt", "Settings");
 }
@@ -95,6 +97,29 @@
                 </div>
             }
         </div>
+
+        @* ── Trang duyệt: hiện ảnh NV (chỉ người duyệt/quản lý; ẩn khi DB chưa có cột SHOW_EMP_PHOTO) ──
+           Expat mặc định bật, quản lý người Việt mặc định tắt — xem UserRoleExtensions.EmpPhotoOn. *@
+        @if (photoAvailable)
+        {
+            <div class="st-group">
+                <div class="st-head">@L("Trang duyệt", "Approval screens")</div>
+                <div class="st-row">
+                    <div class="st-icon"><span class="material-symbols-rounded">badge</span></div>
+                    <div class="st-body">
+                        <div class="st-label">@L("Hiện ảnh nhân viên", "Show employee photos")</div>
+                        <div class="st-desc">
+                            @L("Ảnh thẻ hiện cạnh mã NV ở trang duyệt phép, ra cổng, tăng ca, chấm công... Bấm vào ảnh để xem to.",
+                               "Shows each employee's ID photo next to their code on leave, gate pass, overtime and attendance screens. Tap a photo to enlarge it.")
+                        </div>
+                    </div>
+                    <div class="st-sw">
+                        <input class="form-check-input" type="checkbox" role="switch" id="swEmpPhoto" @(photoOn ? "checked" : "")>
+                        <span class="st-state" data-on="@L("BẬT", "ON")" data-off="@L("TẮT", "OFF")"></span>
+                    </div>
+                </div>
+            </div>
+        }
 
         @* ── Màn hình chính: thêm widget ───────────────────────────────────
            Phần lớn người dùng là công nhân, không ai biết nhấn giữ màn hình rồi mò trong danh sách
@@ -367,6 +392,40 @@
                 stToastMsg(MSG_ON);
             }
             paint(on, on);
+        });
+    })();
+
+    // Ảnh NV ở trang duyệt — lưu ngay khi gạt; lỗi thì trả công tắc về vị trí cũ.
+    (function () {
+        const sw = document.getElementById('swEmpPhoto');
+        if (!sw) return;
+        const token = document.querySelector('input[name="__RequestVerificationToken"]');
+        const MSG_OK   = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Đã lưu", "Saved")));
+        const MSG_FAIL = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(L("Không lưu được, thử lại nhé.", "Could not save, please try again.")));
+        sw.addEventListener('change', async function () {
+            const want = sw.checked;
+            sw.disabled = true;
+            try {
+                const res = await fetch('@Url.Action("SetEmpPhoto", "Settings")', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'RequestVerificationToken': token ? token.value : ''
+                    },
+                    body: new URLSearchParams({ show: want.toString() })
+                });
+                const d = await res.json();
+                if (d && d.success) {
+                    stToastMsg(MSG_OK);
+                    document.documentElement.setAttribute('data-ep-on', want ? '1' : '0');
+                    if (d.token) document.querySelectorAll('input[name="__RequestVerificationToken"]').forEach(function (i) { i.value = d.token; });
+                } else { sw.checked = !want; stToastMsg(MSG_FAIL); }
+            } catch {
+                sw.checked = !want;
+                stToastMsg(MSG_FAIL);
+            } finally {
+                sw.disabled = false;
+            }
         });
     })();
 

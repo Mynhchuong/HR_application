@@ -4,374 +4,447 @@
     int curYear  = (int)(ViewBag.CurrentYear  ?? DateTime.Today.Year);
     string todayMin = DateTime.Today.AddDays(1).ToString("yyyy-MM-dd");
 }
+@*
+    Thiết kế lại 2026-11-21 (quản lý than trang này dùng trên điện thoại khó quá):
+      - Tab Duyệt: điện thoại = thẻ rõ ràng (ảnh/tên, loại + ngày, lý do, 2 nút Từ chối / Duyệt to), web = bảng.
+        Hộp xác nhận nói rõ đang duyệt đơn của ai; trên điện thoại trượt từ dưới lên.
+      - Tab Sắp lịch: danh sách NV cuộn theo trang (bỏ khung cuộn lồng 200px), thanh đáy luôn thấy số NV đã chọn
+        + nút đi tiếp; NV đã chọn hiện thành thẻ nhỏ ở phần điền ngày. Giữ lựa chọn khi tìm/lọc (trước đây mất hết).
+      - Tab Đã sắp: số liệu gọn 1 hàng.
+    API / quy tắc duyệt KHÔNG đổi.
+*@
 
 @section Styles {
 <style>
-    .pagination .page-link { cursor:pointer; border-radius:8px !important; margin:0 2px; }
-    .pagination .page-item.disabled .page-link { cursor:default; }
-    .pagination .page-item.active .page-link { background:#3b82f6; border-color:#3b82f6; }
-    .pending-age {
-        display: inline-block; margin-top: 4px; padding: 2px 8px;
-        border-radius: 999px; font-size: .7rem; font-weight: 700;
-        background: #fef3c7; color: #92400e; border: 1px solid #fbbf24;
+    .ts-page { max-width: 1180px; margin: 0 auto; }
+    /* ── 3 tab dạng thẻ (2026-11-21: tab cũ chữ xám trên nền xám, khó thấy) ──
+       Theme Material tự tô gradient cho .nav-link.active → phải !important để giữ đúng màu ở đây. */
+    .ts-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 14px; padding: 0; list-style: none; }
+    .ts-tabs .nav-link {
+        width: 100%; height: 100%; margin: 0 !important; display: flex; align-items: center; gap: 12px; text-align: left;
+        padding: 12px 14px; border-radius: 16px !important; border: 1.5px solid #e2e8f0 !important;
+        background: #fff !important; background-image: none !important; color: #0f172a !important;
+        box-shadow: 0 1px 3px rgba(15,23,42,.06) !important; transition: transform .12s, box-shadow .15s, border-color .15s;
     }
-    .pending-age.stale {
-        background: #fee2e2; color: #991b1b; border-color: #dc2626;
-        animation: pulse-red 1.6s infinite ease-in-out;
+    .ts-tabs .nav-item { min-width: 0; }
+    .ts-tabs .nav-link:hover { border-color: #93c5fd !important; }
+    .ts-tabs .nav-link:active { transform: scale(.98); }
+    .ts-tab-ic { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+    .ts-tab-ic .ic3d { width: 28px; height: 28px; }
+    .ts-tab-ic.c1 { background: #dbeafe; } .ts-tab-ic.c2 { background: #fef3c7; } .ts-tab-ic.c3 { background: #dcfce7; }
+    .ts-tab-txt { min-width: 0; display: flex; flex-direction: column; }
+    .ts-tab-label { display: inline-flex; align-items: center; gap: 6px; font-size: 1.02rem; font-weight: 800; line-height: 1.2; }
+    .ts-tab-sub { font-size: .76rem; font-weight: 600; color: #64748b; margin-top: 2px; }
+    .ts-tab-badge { background: #ef4444; color: #fff; border-radius: 999px; font-size: .72rem; font-weight: 800; padding: 1px 8px; line-height: 1.5; }
+    .ts-tabs .nav-link.active {
+        background: #1d4ed8 !important; border-color: #1d4ed8 !important; color: #fff !important;
+        box-shadow: 0 6px 16px rgba(29,78,216,.28) !important;
     }
-    @@keyframes pulse-red {
-        0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.5); }
-        50%     { box-shadow: 0 0 0 6px rgba(220,38,38,0); }
-    }
+    .ts-tabs .nav-link.active .ts-tab-sub { color: rgba(255,255,255,.85); }
+    .ts-tabs .nav-link.active .ts-tab-ic { background: rgba(255,255,255,.2); }
+    .ts-tabs .nav-link.active .ts-tab-badge { background: #fff; color: #dc2626; }
+
+    .ts-card { background: #fff; border-radius: 18px; box-shadow: 0 1px 3px rgba(15,23,42,.06), 0 0 0 1px rgba(15,23,42,.04); margin-bottom: 14px; }
+    .ts-card-pad { padding: 14px 16px; }
+    .ts-sec { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #0f172a; font-size: 1rem; margin-bottom: 10px; }
+    .ts-sec .ts-step { width: 26px; height: 26px; border-radius: 50%; background: #dbeafe; color: #1d4ed8; display: inline-flex; align-items: center; justify-content: center; font-size: .85rem; }
+
+    /* ── Thanh công cụ: tháng + tìm ── */
+    .ts-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 16px 8px; }
+    .ts-month { display: flex; align-items: center; background: #f1f5f9; border-radius: 12px; padding: 3px; }
+    .ts-month button { width: 38px; height: 38px; border: 0; border-radius: 10px; background: transparent; color: #334155; font-size: 1.1rem; }
+    .ts-month button:active { background: #e2e8f0; }
+    .ts-month span { min-width: 128px; text-align: center; font-weight: 800; color: #0f172a; font-size: .95rem; }
+    .ts-search { position: relative; flex: 1; min-width: 180px; }
+    .ts-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+    .ts-search input { width: 100%; height: 44px; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 0 12px 0 36px; font-size: .95rem; outline: none; background: #fff; }
+    .ts-search input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+
+    /* ── Chip lọc trạng thái (cuộn ngang trên điện thoại) ── */
+    .ts-chips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 12px; scrollbar-width: none; }
+    .ts-chips::-webkit-scrollbar { display: none; }
+    .apv-tab { flex-shrink: 0; cursor: pointer; padding: 8px 14px; border-radius: 999px; font-size: .85rem; font-weight: 700; white-space: nowrap;
+               background: #f1f5f9; color: #475569; border: 1.5px solid #e2e8f0; user-select: none; }
+    .apv-tab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+    .ts-chip-n { margin-left: 6px; font-size: .75rem; opacity: .75; }
+    .ts-chip-n:empty { display: none; }
+    #apv-pending .ts-chip-n:not(:empty) { opacity: 1; background: #ef4444; color: #fff; border-radius: 999px; padding: 0 6px; }
+
+    /* ── Bảng (web) ── */
+    .ts-table th { font-size: .7rem; text-transform: uppercase; color: #64748b; font-weight: 800; letter-spacing: .03em; background: #f8fafc; }
+    .ts-table td { vertical-align: middle; }
+    .ts-table th, .ts-table td { padding-left: .5rem !important; padding-right: .5rem !important; }
     tr.row-stale-pending { background: linear-gradient(90deg, #fff1f2 0%, transparent 30%) !important; border-left: 4px solid #dc2626 !important; }
     tr.row-stale-pending td { background: transparent !important; }
-    .ts-time-wrap    { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
-    .ts-time-chip    { display:inline-flex; align-items:center; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; padding:2px 8px; font-size:.78rem; white-space:nowrap; }
-    .ts-time-chip b  { color:#1e3a8a; margin-left:2px; }
-    .ts-time-created { font-size:.7rem; color:#94a3b8; }
-    /* Card mobile (MobileTableHelper): cột "Nhân viên" gộp mã NV + tên + dòng
-       phòng ban, nhưng .mt-name mặc định ép 1 dòng + ellipsis cho tên đơn —
-       khôi phục xuống dòng tự nhiên để dòng phòng ban không bị cắt cụt giữa chừng. */
-    #mt-list-approvalBody .mt-name {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: clip;
-        display: block;
-        line-height: 1.3;
+    .ts-time-chip { display: inline-flex; align-items: center; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; border-radius: 8px; padding: 2px 8px; font-size: .78rem; white-space: nowrap; }
+    .ts-time-created { font-size: .7rem; color: #94a3b8; margin-top: 2px; }
+    .pending-age { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700; background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
+    .pending-age.stale { background: #fee2e2; color: #991b1b; border-color: #dc2626; animation: pulse-red 1.6s infinite ease-in-out; }
+    @@keyframes pulse-red { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,.5); } 50% { box-shadow: 0 0 0 6px rgba(220,38,38,0); } }
+    .sig-cell      { display: flex; gap: 8px; justify-content: center; align-items: flex-start; }
+    .sig-cell-item { text-align: center; min-width: 80px; }
+    .sig-cell-lbl  { font-size: .6rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+    .sig-cell-img  { display: block; margin: 0 auto; max-height: 55px; max-width: 110px; object-fit: contain; background: #fafafa; border-radius: 4px; padding: 2px; }
+    .sig-cell-name { font-size: .65rem; color: #64748b; margin-top: 2px; line-height: 1.2; }
+    .ts-act { display: inline-flex; flex-direction: column; gap: 6px; min-width: 92px; }
+    .ts-act .btn { padding: 6px 10px; text-transform: none; }
+    .ts-dept1 { line-height: 1.2; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ts-time-chip { white-space: nowrap; }
+    .ts-sig-td .sig-cell-item { min-width: 64px; }
+    .ts-sig-td .sig-cell-img  { max-height: 38px; max-width: 80px; }
+    .ts-act .btn { margin: 0; font-weight: 700; }
+
+    /* ── Thẻ đơn (điện thoại) ── */
+    .ts-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; padding: 0 12px 4px; align-items: start; }
+    .ts-item { border-radius: 16px; background: #fff; border: 1px solid #e8edf3; padding: 12px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    .ts-item.stale { border-color: #fca5a5; box-shadow: inset 4px 0 0 #dc2626; }
+    .ts-item-top { display: flex; align-items: flex-start; gap: 10px; }
+    .ts-who { flex: 1; min-width: 0; }
+    .ts-name { font-weight: 800; color: #0f172a; font-size: 1rem; line-height: 1.25; text-transform: uppercase; word-break: break-word; }
+    .ts-sub  { font-size: .78rem; color: #64748b; margin-top: 2px; line-height: 1.3; }
+    .ts-sub .ts-dept { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+    .ts-st { flex-shrink: 0; font-size: .75rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+    .ts-st.pending  { background: #fef3c7; color: #92400e; }
+    .ts-st.approved { background: #dcfce7; color: #166534; }
+    .ts-st.rejected { background: #fee2e2; color: #991b1b; }
+    .ts-item-mid { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 10px; }
+    .ts-item-mid .badge { font-size: .75rem; }
+    .ts-date { font-size: .92rem; font-weight: 700; color: #1e293b; }
+    .ts-days { font-size: .8rem; font-weight: 800; color: #1d4ed8; background: #eff6ff; border-radius: 8px; padding: 2px 8px; }
+    .ts-reason { margin-top: 8px; font-size: .88rem; color: #334155; background: #f8fafc; border-radius: 10px; padding: 8px 10px; line-height: 1.4; word-break: break-word; }
+    .ts-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; font-size: .75rem; color: #94a3b8; }
+    .ts-meta .pending-age { margin-top: 0; }
+    .ts-link { border: 0; background: none; padding: 0; color: #2563eb; font-weight: 700; font-size: .78rem; }
+    .ts-sig { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+    .ts-sig.open { display: block; }
+    .ts-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 12px; }
+    .ts-btns .btn { margin: 0; height: 48px; border-radius: 12px; font-size: 1rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; text-transform: none; }
+    .ts-btns .btn-reject { background: #fff; color: #dc2626; border: 1.5px solid #fca5a5; }
+    .ts-btns .btn-approve { background: #16a34a; color: #fff; border: 0; box-shadow: 0 4px 10px rgba(22,163,74,.25); }
+    .ts-note { margin-top: 10px; font-size: .82rem; font-weight: 600; color: #b45309; background: #fffbeb; border-radius: 10px; padding: 8px 10px; }
+    .ts-note.muted { color: #64748b; background: #f1f5f9; }
+
+    .ts-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px 14px; flex-wrap: wrap; }
+    .pagination .page-link { cursor: pointer; border-radius: 10px !important; margin: 0 2px; min-width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+    .pagination .page-item.disabled .page-link { cursor: default; }
+    .pagination .page-item.active .page-link { background: #1d4ed8; border-color: #1d4ed8; }
+    .ts-empty { text-align: center; padding: 36px 12px; color: #94a3b8; font-size: .9rem; }
+    .ts-empty img { width: 120px; opacity: .85; display: block; margin: 0 auto 10px; }
+
+    /* ── Sắp lịch ── */
+    .ts-filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .ts-filter-row select { flex: 1; min-width: 120px; height: 42px; border-radius: 10px; }
+    .ts-filter-toggle { display: none; }
+    .ts-quick { display: flex; align-items: center; gap: 12px; margin: 6px 0 8px; font-size: .85rem; }
+    .ts-quick button { border: 0; background: none; padding: 0; color: #2563eb; font-weight: 700; }
+    .ts-legend { margin-left: auto; display: flex; gap: 8px; font-size: .72rem; color: #64748b; }
+    .ts-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 3px; vertical-align: 0; }
+    .emp-list-wrap { max-height: 460px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+    .emp-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; min-height: 60px; border-bottom: 1px solid #f1f5f9; cursor: pointer; margin: 0; }
+    .emp-item:last-child { border-bottom: none; }
+    .emp-item.checked { background: #eff6ff; }
+    .emp-item input[type=checkbox] { width: 22px; height: 22px; accent-color: #1d4ed8; flex-shrink: 0; cursor: pointer; }
+    .emp-item .emp-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .emp-item .emp-name { font-size: .92rem; font-weight: 700; color: #1e293b; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .emp-item .emp-dept { font-size: .75rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .emp-item .emp-code { font-size: .75rem; color: #94a3b8; font-family: monospace; }
+    .emp-item .ep-av { margin: 0; }
+    .leave-badge { font-size: .72rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap; }
+    .lb-empty { background: #fee2e2; color: #b91c1c; }
+    .lb-low   { background: #fef3c7; color: #92400e; }
+    .lb-ok    { background: #dcfce7; color: #166534; }
+    #assignForm, #assignResults, #scheduleTab { scroll-margin-top: 84px; }   /* cuộn tới không bị thanh đầu trang che */
+    .ts-form label { font-size: .82rem; font-weight: 700; color: #334155; margin-bottom: 4px; }
+    .ts-form .form-control, .ts-form .form-select { height: 46px; border-radius: 12px; font-size: .95rem; }
+    .ts-form .form-control[readonly] { background: #f8fafc; font-weight: 800; color: #1d4ed8; }
+    .ts-picked { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .ts-picked:empty::before { content: attr(data-empty); font-size: .85rem; color: #94a3b8; }
+    .ts-pick { display: inline-flex; align-items: center; gap: 4px; background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; border-radius: 999px; padding: 3px 4px 3px 10px; font-size: .8rem; font-weight: 700; max-width: 100%; }
+    .ts-pick span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ts-pick button { border: 0; background: #dbeafe; color: #1e3a8a; width: 22px; height: 22px; border-radius: 50%; line-height: 1; flex-shrink: 0; }
+    .ts-submit { height: 52px; border-radius: 14px; font-size: 1.02rem; font-weight: 800; text-transform: none; }
+    .result-item { padding: 8px 10px; border-radius: 10px; margin-bottom: 6px; font-size: .85rem; }
+    .result-item.ok  { background: #ecfdf5; border-left: 3px solid #10b981; color: #065f46; }
+    .result-item.err { background: #fff0f0; border-left: 3px solid #ef4444; color: #7f1d1d; }
+    /* Thanh đáy của tab Sắp lịch (điện thoại/tablet: nằm ngay trên menu dưới) */
+    .ts-bar { position: fixed; left: 0; right: 0; bottom: 68px; z-index: 1019; display: none; align-items: center; gap: 10px;
+              padding: 10px 14px; background: #fff; box-shadow: 0 -1px 0 rgba(15,23,42,.08), 0 -8px 20px rgba(15,23,42,.06); }
+    .ts-bar-count { flex: 1; font-size: .85rem; color: #475569; line-height: 1.25; }
+    .ts-bar-count b { display: block; font-size: 1.05rem; color: #0f172a; }
+    .ts-bar .btn { margin: 0; height: 48px; border-radius: 12px; padding: 0 18px; font-weight: 800; font-size: .98rem; text-transform: none; }
+    body.kb-open .ts-bar { display: none !important; }
+    .ts-bar #tsBarBack { padding: 0 14px; background: #f1f5f9; color: #334155; border: 0; }
+    /* Thanh bước (điện thoại/tablet): 1 Chọn NV → 2 Ngày nghỉ */
+    .ts-stepper { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+    .ts-stepper > i { color: #cbd5e1; }
+    .ts-stp { flex: 1; display: flex; align-items: center; gap: 8px; border: 0; background: #fff; border-radius: 14px; padding: 10px 12px;
+              font-weight: 800; color: #94a3b8; font-size: .9rem; box-shadow: 0 0 0 1px rgba(15,23,42,.06); text-align: left; }
+    .ts-stp span { width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; color: #64748b; flex-shrink: 0;
+                   display: inline-flex; align-items: center; justify-content: center; font-size: .82rem; }
+    .ts-stp.on { color: #1d4ed8; box-shadow: 0 0 0 2px #93c5fd; }
+    .ts-stp.on span { background: #1d4ed8; color: #fff; }
+    .ts-stp.done { color: #15803d; }
+    .ts-stp.done span { background: #16a34a; color: #fff; }
+    .ts-step2-hint { background: #eff6ff; color: #1e3a8a; border-radius: 12px; padding: 10px 12px; font-size: .9rem; margin-bottom: 10px; line-height: 1.4; }
+    .ts-emp-pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: .8rem; color: #64748b; }
+
+    /* ── Đã sắp: số liệu 1 hàng ── */
+    .ts-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .ts-stat { background: #fff; border-radius: 14px; padding: 10px 12px; box-shadow: 0 0 0 1px rgba(15,23,42,.05); }
+    .ts-stat div { font-size: .72rem; font-weight: 700; color: #64748b; }
+    .ts-stat b { font-size: 1.35rem; color: #0f172a; }
+    .ts-stat.warn b { color: #d97706; } .ts-stat.ok b { color: #16a34a; }
+    .ts-toolbar select { height: 44px; border-radius: 12px; max-width: 220px; }
+
+    /* ── Hộp xác nhận duyệt ── */
+    #tsActionModal .modal-content { border: 0; border-radius: 20px; overflow: hidden; }
+    .ts-act-who { background: #f8fafc; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: .88rem; color: #334155; }
+    .ts-act-who b { color: #0f172a; text-transform: uppercase; }
+    #tsActionModal .modal-footer .btn { height: 48px; border-radius: 12px; font-weight: 800; flex: 1; margin: 0; text-transform: none; }
+
+    @@media (max-width: 991.98px) {
+        .ts-bar.on-tab { display: flex; }
+        #tab-assign { padding-bottom: 80px; }
+        .emp-list-wrap { max-height: none; overflow: visible; }
+        #tab-assign:not(.step-2) #assignColForm { display: none; }
+        #tab-assign.step-2 #assignColList { display: none; }
+        #assignBtn { display: none; }
     }
-    .sig-cell      { display:flex; gap:8px; justify-content:center; align-items:flex-start; }
-    .sig-cell-item { text-align:center; min-width:80px; }
-    .sig-cell-lbl  { font-size:.6rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px; }
-    .sig-cell-img  { display:block; margin:0 auto; max-height:55px; max-width:110px; object-fit:contain; background:#fafafa; border-radius:4px; padding:2px; }
-    .sig-cell-name { font-size:.65rem; color:#64748b; margin-top:2px; line-height:1.2; }
-    .month-nav { display:flex; align-items:center; gap:8px; }
-    .month-nav button { border:none; background:rgba(255,255,255,.2); color:#fff; border-radius:6px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; font-size:1rem; cursor:pointer; }
-    .month-nav button:hover { background:rgba(255,255,255,.35); }
-    .month-nav span { font-weight:700; font-size:1rem; color:#fff; min-width:120px; text-align:center; }
-    .result-item { padding:6px 10px; border-radius:6px; margin-bottom:4px; font-size:.82rem; }
-    .result-item.ok  { background:#ecfdf5; border-left:3px solid #10b981; color:#065f46; }
-    .result-item.err { background:#fff0f0; border-left:3px solid #ef4444; color:#7f1d1d; }
-    /* Emp checklist */
-    .emp-list-wrap { max-height:340px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; background:#fafafa; }
-    .emp-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
-    .emp-item:last-child { border-bottom:none; }
-    .emp-item:hover { background:#f0f7ff; }
-    .emp-item.leave-empty  { background:#fff5f5; }
-    .emp-item.leave-empty:hover { background:#fed7d7; }
-    .emp-item.leave-low    { background:#fffbeb; }
-    .emp-item.leave-low:hover { background:#fde68a; }
-    .emp-item.leave-ok     { background:#f0fdf4; }
-    .emp-item.leave-ok:hover { background:#bbf7d0; }
-    .emp-item input[type=checkbox] { width:16px; height:16px; accent-color:#6366f1; flex-shrink:0; cursor:pointer; }
-    .emp-item .emp-info { display:flex; flex-direction:column; min-width:0; }
-    .emp-item .emp-name { font-size:.83rem; font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .emp-item .emp-dept { font-size:.73rem; color:#64748b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .emp-item .emp-code { font-size:.75rem; color:#94a3b8; font-family:monospace; flex-shrink:0; }
-    .leave-badge { font-size:.68rem; font-weight:700; padding:2px 6px; border-radius:10px; flex-shrink:0; white-space:nowrap; }
-    .sel-count { font-size:.8rem; color:#6366f1; font-weight:600; }
-    /* Approval status pills */
-    .apv-tab { cursor:pointer; padding:5px 13px; border-radius:20px; font-size:.78rem; font-weight:600; border:1.5px solid transparent; transition:all .18s; }
-    .apv-tab.active { background:#3b82f6; color:#fff; border-color:#3b82f6; }
-    .apv-tab:not(.active) { background:#f1f5f9; color:#64748b; border-color:#e2e8f0; }
-    .apv-tab:not(.active):hover { background:#e2e8f0; }
-    /* Empcd filter input */
-    .empcd-filter { width:110px; font-size:.8rem; height:30px; border-radius:8px; border:1.5px solid #e2e8f0; padding:0 8px 0 26px; outline:none; background:#fff; transition:border-color .18s; }
-    .empcd-filter:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,.14); }
-    .empcd-wrap { position:relative; display:inline-flex; align-items:center; }
-    .empcd-wrap i { position:absolute; left:7px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
-    /* Tab segmented control */
-    #scheduleTab { background:#f1f5f9; border-radius:12px; padding:4px !important; gap:0 !important; margin-bottom:1rem !important; }
-    #scheduleTab .nav-item { flex:1; }
-    #scheduleTab .nav-link { width:100%; text-align:center; border-radius:9px; font-size:.85rem; font-weight:600; color:#64748b; padding:8px 12px; transition:all .2s; }
-    #scheduleTab .nav-link.active { background:#fff; color:#3b82f6; box-shadow:0 1px 4px rgba(0,0,0,.12); }
-    #scheduleTab .nav-link:not(.active):hover { color:#3b82f6; background:rgba(255,255,255,.5); }
-    @@media (max-width:576px) {
-        /* General */
-        .container-fluid { padding-left:8px !important; padding-right:8px !important; }
-        /* Tab nav */
-        #scheduleTab { border-radius:10px; }
-        #scheduleTab .nav-link { font-size:.7rem; padding:7px 2px; }
-        #scheduleTab .nav-link .tab-text-full  { display:none; }
-        #scheduleTab .nav-link .tab-text-short { display:inline; }
-        #scheduleTab .nav-link i { font-size:.85rem; }
-        /* Month nav */
-        .month-nav span { min-width:76px; font-size:.82rem; }
-        .month-nav button { width:26px; height:26px; }
-        /* Tables — reduce side padding */
-        #tab-approve .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
-        #tab-myassign .table-responsive { padding-left:.35rem !important; padding-right:.35rem !important; }
-        /* Approval filter: pill hàng riêng, ô tìm mã NV xuống dòng full-width
-           (trước đây gộp 1 hàng cuộn ngang, ô tìm bị cắt khuất ở mép phải) */
-        #apvFilterBar { flex-wrap:wrap; }
-        #apvFilterBar .apv-tab { font-size:.72rem; padding:4px 9px; }
-        #apvFilterBar .empcd-wrap { flex-shrink:0; margin-left:0 !important; width:100%; order:99; }
-        #apvFilterBar .empcd-wrap .empcd-filter { width:100%; }
-        /* Emp list */
-        .emp-list-wrap { max-height:200px; }
-        /* Pagination */
-        .pagination-sm .page-link { padding:.2rem .38rem; font-size:.72rem; }
-        /* py-4 container */
-        .py-4 { padding-top:1rem !important; padding-bottom:1rem !important; }
-        /* Summary cards (Tab 4) */
-        #myAssignSummary .card { padding-top:.75rem !important; padding-bottom:.75rem !important; }
-        #myAssignSummary .h4   { font-size:1.2rem; }
-    }
-    @@media (min-width:577px) {
-        #scheduleTab .nav-link .tab-text-short { display:none; }
-        #scheduleTab .nav-link .tab-text-full  { display:inline; }
+    @@media (max-width: 767.98px) {
+        .container-fluid.ts-page { padding-left: 10px !important; padding-right: 10px !important; }
+        .ts-tabs { gap: 8px; }
+        .ts-tabs .nav-link { flex-direction: column; justify-content: center; gap: 6px; padding: 10px 4px; text-align: center; }
+        .ts-tabs .ts-tab-txt { align-items: center; }
+        .ts-tab-ic { width: 40px; height: 40px; }
+        .ts-tab-label { font-size: .9rem; }
+        .ts-tab-sub { display: none; }
+        .ts-toolbar { padding: 12px 12px 6px; }
+        .ts-month { width: 100%; justify-content: space-between; }
+        .ts-toolbar .ts-search { min-width: 100%; }
+        .ts-card-pad .ts-search { min-width: 0; }
+        .ts-chips { padding: 4px 12px 10px; }
+        .ts-cards { grid-template-columns: 1fr; }
+        .ts-filter-toggle { display: inline-flex; }
+        .ts-filter-row { display: none; }
+        .ts-filter-row.open { display: flex; }
+        .ts-filter-row select { min-width: 100%; }
+        .ts-legend { display: none; }
+        .ts-card-pad { padding: 12px; }
+        .ts-stat b { font-size: 1.15rem; }
+        /* Hộp xác nhận: trượt từ dưới lên */
+        #tsActionModal .modal-dialog { position: fixed; left: 0; right: 0; bottom: 0; margin: 0; max-width: none !important; min-height: 0; transform: translateY(100%); transition: transform .28s cubic-bezier(.32,.72,0,1); }
+        #tsActionModal.show .modal-dialog { transform: none; }
+        #tsActionModal .modal-content { border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
     }
 </style>
 }
 
-<div class="container-fluid py-4">
+<div class="container-fluid py-3 ts-page">
 
-    <!-- Nav tabs -->
-    <ul class="nav nav-pills d-flex" id="scheduleTab" role="tablist">
-        <li class="nav-item" role="presentation" id="tabAssignLi">
-            <button class="nav-link" id="tab-assign-btn" data-bs-toggle="pill" data-bs-target="#tab-assign" type="button">
-                <i class="bi bi-calendar2-plus me-1"></i>
-                <span class="tab-text-full">Sắp lịch nghỉ</span>
-                <span class="tab-text-short">Sắp lịch</span>
-            </button>
-        </li>
+    <ul class="nav ts-tabs" id="scheduleTab" role="tablist">
         <li class="nav-item" role="presentation" id="tabApproveLi">
             <button class="nav-link active" id="tab-approve-btn" data-bs-toggle="pill" data-bs-target="#tab-approve" type="button">
-                <i class="bi bi-shield-check me-1"></i>
-                <span class="tab-text-full">Duyệt nghỉ phép</span>
-                <span class="tab-text-short">Duyệt</span>
-                <span id="pendingBadge" class="badge rounded-pill ms-1 d-none" style="background:#ef4444;font-size:.65rem;padding:2px 6px;"></span>
+                <span class="ts-tab-ic c1"><i class="bi bi-shield-check"></i></span>
+                <span class="ts-tab-txt">
+                    <span class="ts-tab-label">Duyệt <span id="pendingBadge" class="ts-tab-badge d-none"></span></span>
+                    <span class="ts-tab-sub">Đơn nghỉ của nhân viên</span>
+                </span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation" id="tabAssignLi">
+            <button class="nav-link" id="tab-assign-btn" data-bs-toggle="pill" data-bs-target="#tab-assign" type="button">
+                <span class="ts-tab-ic c2"><i class="bi bi-calendar2-plus"></i></span>
+                <span class="ts-tab-txt">
+                    <span class="ts-tab-label">Sắp lịch</span>
+                    <span class="ts-tab-sub">Xếp ngày nghỉ cho nhân viên</span>
+                </span>
             </button>
         </li>
         <li class="nav-item" role="presentation" id="tabMyAssignLi">
             <button class="nav-link" id="tab-myassign-btn" data-bs-toggle="pill" data-bs-target="#tab-myassign" type="button">
-                <i class="bi bi-person-check me-1"></i>
-                <span class="tab-text-full">Lịch tôi sắp</span>
-                <span class="tab-text-short">Tôi sắp</span>
+                <span class="ts-tab-ic c3"><i class="bi bi-person-check"></i></span>
+                <span class="ts-tab-txt">
+                    <span class="ts-tab-label">Đã sắp</span>
+                    <span class="ts-tab-sub">Lịch tôi đã sắp</span>
+                </span>
             </button>
         </li>
     </ul>
 
     <div class="tab-content">
 
-        <!-- ══════════════════ TAB 2: SẮP LỊCH ══════════════════ -->
-        <div class="tab-pane fade" id="tab-assign" role="tabpanel">
-            <div class="card">
-                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div>
-                            <h6 class="text-white mb-0"><i class="bi bi-calendar2-plus me-1"></i> Sắp Lịch Nghỉ Phép</h6>
-                            <p class="text-white text-xs mt-1 mb-0 opacity-8">Chọn nhân viên → Điền ngày → Gửi</p>
-                        </div>
-                        <span class="badge bg-white text-warning sel-count" id="selCount">0 NV được chọn</span>
-                    </div>
-                </div>
-                <div class="card-body mt-3">
-                    <div class="row g-3">
-                        <!-- LEFT: emp list -->
-                        <div class="col-lg-6">
-                            <label class="form-label small fw-bold mb-1">Nhân viên <span class="text-danger">*</span></label>
-                            <div class="d-flex gap-2 mb-2 flex-wrap">
-                                <select id="filterEmpDept" class="form-select form-select-sm" style="min-width:120px;flex:1;" onchange="onDeptFilter()">
-                                    <option value="">Tất cả bộ phận</option>
-                                </select>
-                                <select id="filterEmpLine" class="form-select form-select-sm" style="min-width:100px;flex:1;" onchange="onLineFilter()">
-                                    <option value="">Tất cả line</option>
-                                </select>
-                                <select id="filterEmpWork" class="form-select form-select-sm" style="min-width:110px;flex:1;" onchange="filterEmps()">
-                                    <option value="">Tất cả nhóm việc</option>
-                                </select>
-                            </div>
-                            <div class="d-flex gap-2 mb-2">
-                                <div class="flex-grow-1 position-relative">
-                                    <i class="bi bi-search position-absolute" style="left:9px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.8rem;"></i>
-                                    <input type="text" id="empSearch" class="form-control form-control-sm ps-4" placeholder="Mã NV hoặc tên..." oninput="filterEmps()" />
-                                </div>
-                                <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="selectAllEmps()">Chọn tất cả</button>
-                                <button class="btn btn-outline-secondary btn-sm text-nowrap" onclick="clearAllEmps()">Bỏ chọn</button>
-                            </div>
-                            <div class="emp-list-wrap" id="empList">
-                                <div class="text-center py-4 text-secondary text-sm">
-                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div> Đang tải...
-                                </div>
-                            </div>
-                        </div>
-                        <!-- RIGHT: date + submit -->
-                        <div class="col-lg-6">
-                            <div class="mb-3">
-                                <label class="form-label small fw-bold mb-1">Loại nghỉ <span class="text-danger">*</span></label>
-                                <select id="assignLeaveType" class="form-select form-select-sm">
-                                    <option value="AL" selected>Phép năm (AL)</option>
-                                    @* Supervisor/Manager hiện tại chỉ được sắp lịch Phép năm (AL) — 5 loại còn lại
-                                       (Đám tang/Đám cưới/Công tác/Vợ sanh/Khám thai) chỉ Admin mới sắp được (trang
-                                       AdminAssignLeave). Backend (LeaveController.Assign, SupervisorAssignTypes)
-                                       cũng đang khoá cứng chỉ AL. Nếu sau này HR yêu cầu mở thêm cho supervisor/manager,
-                                       thêm option ở đây + thêm mã tương ứng vào SupervisorAssignTypes phía backend.
-                                    <option value="DT">Đám tang (DT)</option>
-                                    <option value="DC">Đám cưới (DC)</option>
-                                    <option value="CT">Công tác (CT)</option>
-                                    <option value="VS">Vợ sanh (VS)</option>
-                                    <option value="KT">Khám thai (KT)</option>
-                                    *@
-                                </select>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-6">
-                                    <label class="form-label small fw-bold mb-1">Từ ngày <span class="text-danger">*</span></label>
-                                    <input type="date" id="assignFromDate" class="form-control form-control-sm" min="@todayMin" onkeydown="return false" onchange="calcAssignDays()" />
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small fw-bold mb-1">Đến ngày <span class="text-danger">*</span></label>
-                                    <input type="date" id="assignToDate" class="form-control form-control-sm" min="@todayMin" onkeydown="return false" onchange="calcAssignDays()" />
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small fw-bold mb-1">Số ngày nghỉ <span class="text-danger">*</span></label>
-                                <input type="number" id="assignTotalDays" class="form-control form-control-sm bg-light" min="0.5" step="0.5" placeholder="Tự động tính" readonly />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small fw-bold mb-1">Lý do / Ghi chú</label>
-                                <input type="text" id="assignReason" class="form-control form-control-sm" maxlength="300" placeholder="Nghỉ phép năm..." />
-                            </div>
-                            <button class="btn btn-warning text-white w-100" id="assignBtn" onclick="submitAssign()">
-                                <i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ
-                            </button>
-                            <div id="assignResults" class="mt-3"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ══════════════════ TAB 3: DUYỆT NGHỈ PHÉP ══════════════════ -->
+        <!-- ══════════════════ DUYỆT NGHỈ PHÉP ══════════════════ -->
         <div class="tab-pane fade show active" id="tab-approve" role="tabpanel">
-            <div class="card">
-                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <h6 class="text-white mb-0"><i class="bi bi-shield-check me-1"></i> Duyệt Đơn Nghỉ Phép</h6>
-                        <div class="month-nav">
-                            <button onclick="changeApprovalMonth(-1)" title="Tháng trước"><i class="bi bi-chevron-left"></i></button>
-                            <span class="month-label-display"></span>
-                            <button onclick="changeApprovalMonth(1)" title="Tháng sau"><i class="bi bi-chevron-right"></i></button>
-                        </div>
+            <div class="ts-card">
+                <div class="ts-toolbar">
+                    <div class="ts-month">
+                        <button type="button" onclick="changeApprovalMonth(-1)" aria-label="Tháng trước"><i class="bi bi-chevron-left"></i></button>
+                        <span class="month-label-display"></span>
+                        <button type="button" onclick="changeApprovalMonth(1)" aria-label="Tháng sau"><i class="bi bi-chevron-right"></i></button>
                     </div>
-                </div>
-                <!-- Status filter -->
-                <div id="apvFilterBar" class="px-3 pt-3 pb-2 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid #f1f5f9;">
-                    <span class="apv-tab active" id="apv-all"     onclick="setApvStatus('')">Tất cả</span>
-                    <span class="apv-tab"        id="apv-pending" onclick="setApvStatus('PENDING')"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>
-                    <span class="apv-tab"        id="apv-approved"onclick="setApvStatus('APPROVED')"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>
-                    <span class="apv-tab"        id="apv-rejected"onclick="setApvStatus('REJECTED')"><i class="bi bi-x-circle me-1"></i>Từ chối</span>
-                    <div class="empcd-wrap ms-auto">
+                    <div class="ts-search">
                         <i class="bi bi-search"></i>
-                        <input type="text" id="apvEmpFilter" class="empcd-filter" placeholder="Mã NV..." oninput="onApvEmpInput()">
+                        <input type="search" id="apvEmpFilter" placeholder="Tìm mã NV hoặc tên..." oninput="onApvEmpInput()" autocomplete="off">
                     </div>
                 </div>
-                <div class="card-body px-0 pt-0 pb-2 mt-1">
-                    <div class="table-responsive px-4 mt-2">
-                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="hidden">#</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Nhân viên">Nhân viên</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại nghỉ">Loại nghỉ</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Thời gian">Thời gian</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="detail" data-mobile-label="Lý do">Lý do</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Tình trạng">Tình trạng</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                        data-mobile="detail" data-mobile-label="Chữ ký">Chữ ký</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Thao tác">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody id="approvalBody"></tbody>
-                        </table>
+                <div class="ts-chips" id="apvFilterBar">
+                    <span class="apv-tab active" id="apv-all"      onclick="setApvStatus('')">Tất cả</span>
+                    <span class="apv-tab"        id="apv-pending"  onclick="setApvStatus('PENDING')"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>
+                    <span class="apv-tab"        id="apv-approved" onclick="setApvStatus('APPROVED')"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>
+                    <span class="apv-tab"        id="apv-rejected" onclick="setApvStatus('REJECTED')"><i class="bi bi-x-circle me-1"></i>Từ chối</span>
+                </div>
+
+                <!-- Web: bảng -->
+                <div class="table-responsive d-none d-xl-block px-3">
+                    <table class="table ts-table align-items-center mb-0 w-100 table-hover">
+                        <thead>
+                            <tr>
+                                <th class="px-2">#</th>
+                                <th class="px-2">Nhân viên</th>
+                                <th class="px-2">Loại nghỉ</th>
+                                <th class="px-2">Thời gian</th>
+                                <th class="px-2">Lý do</th>
+                                <th class="text-center">Tình trạng</th>
+                                <th class="text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="approvalBody"></tbody>
+                    </table>
+                </div>
+                <!-- Điện thoại: thẻ -->
+                <div class="ts-cards d-xl-none" id="apvCards"></div>
+
+                <div class="ts-foot">
+                    <div id="apvCount" class="text-sm text-secondary"></div>
+                    <nav><ul class="pagination pagination-sm mb-0" id="apvPagination"></ul></nav>
+                </div>
+            </div>
+        </div>
+
+        <!-- ══════════════════ SẮP LỊCH ══════════════════ -->
+        <div class="tab-pane fade" id="tab-assign" role="tabpanel">
+            <div class="ts-stepper d-lg-none" id="tsStepper">
+                <button type="button" class="ts-stp on" id="tsStp1" onclick="goStep(1)"><span>1</span>Chọn nhân viên</button>
+                <i class="bi bi-chevron-right"></i>
+                <button type="button" class="ts-stp" id="tsStp2" onclick="goStep(2)"><span>2</span>Chọn ngày nghỉ</button>
+            </div>
+            <div class="row g-3">
+                <div class="col-lg-7" id="assignColList">
+                    <div class="ts-card ts-card-pad">
+                        <div class="ts-sec"><span class="ts-step">1</span> Chọn nhân viên
+                            <span class="ms-auto badge bg-primary" id="selCount" style="font-size:.78rem;">0 NV</span>
+                        </div>
+                        <div class="d-flex gap-2 mb-2">
+                            <div class="ts-search">
+                                <i class="bi bi-search"></i>
+                                <input type="search" id="empSearch" placeholder="Mã NV hoặc tên..." oninput="filterEmps()" autocomplete="off" />
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary ts-filter-toggle mb-0 px-3" style="height:44px;border-radius:12px;"
+                                    onclick="document.getElementById('empFilters').classList.toggle('open')"><i class="bi bi-funnel"></i></button>
+                        </div>
+                        <div class="ts-filter-row" id="empFilters">
+                            <select id="filterEmpDept" class="form-select form-select-sm" onchange="onDeptFilter()"><option value="">Tất cả bộ phận</option></select>
+                            <select id="filterEmpLine" class="form-select form-select-sm" onchange="onLineFilter()"><option value="">Tất cả line</option></select>
+                            <select id="filterEmpWork" class="form-select form-select-sm" onchange="filterEmps()"><option value="">Tất cả nhóm việc</option></select>
+                        </div>
+                        <div class="ts-quick">
+                            <button type="button" id="btnSelectAll" onclick="selectAllEmps()"><i class="bi bi-check2-all me-1"></i>Chọn tất cả</button>
+                            <button type="button" onclick="clearAllEmps()" class="text-secondary">Bỏ chọn</button>
+                            <div class="ts-legend">
+                                <span><i style="background:#86efac"></i>Còn phép</span>
+                                <span><i style="background:#fcd34d"></i>≤ 3 ngày</span>
+                                <span><i style="background:#fca5a5"></i>Hết phép</span>
+                            </div>
+                        </div>
+                        <div class="emp-list-wrap" id="empList">
+                            <div class="ts-empty"><div class="spinner-border spinner-border-sm me-2" role="status"></div> Đang tải...</div>
+                        </div>
+                        <div class="ts-emp-pager" id="empPager"></div>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center px-4 mt-3 mb-2">
-                        <div id="apvCount" class="text-sm text-secondary"></div>
-                        <nav><ul class="pagination pagination-sm mb-0" id="apvPagination"></ul></nav>
+                </div>
+                <div class="col-lg-5" id="assignColForm">
+                    <div class="ts-card ts-card-pad ts-form" id="assignForm">
+                        <div class="ts-sec"><span class="ts-step">2</span> Ngày nghỉ</div>
+                        <div class="ts-step2-hint d-lg-none" id="step2Hint"></div>
+                        <div class="ts-picked" id="selPicked" data-empty="Chưa chọn nhân viên nào"></div>
+                        <div class="mb-3">
+                            <label>Loại nghỉ <span class="text-danger">*</span></label>
+                            <select id="assignLeaveType" class="form-select">
+                                <option value="AL" selected>Phép năm (AL)</option>
+                                @* Supervisor/Manager hiện tại chỉ được sắp lịch Phép năm (AL) — 5 loại còn lại
+                                   (Đám tang/Đám cưới/Công tác/Vợ sanh/Khám thai) chỉ Admin mới sắp được (trang
+                                   AdminAssignLeave). Backend (LeaveController.Assign, SupervisorAssignTypes)
+                                   cũng đang khoá cứng chỉ AL. Nếu sau này HR yêu cầu mở thêm cho supervisor/manager,
+                                   thêm option ở đây + thêm mã tương ứng vào SupervisorAssignTypes phía backend. *@
+                            </select>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label>Từ ngày <span class="text-danger">*</span></label>
+                                <input type="date" id="assignFromDate" class="form-control" min="@todayMin" onkeydown="return false" onchange="calcAssignDays()" />
+                            </div>
+                            <div class="col-6">
+                                <label>Đến ngày <span class="text-danger">*</span></label>
+                                <input type="date" id="assignToDate" class="form-control" min="@todayMin" onkeydown="return false" onchange="calcAssignDays()" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Số ngày nghỉ (tự tính, không tính Chủ Nhật)</label>
+                            <input type="number" id="assignTotalDays" class="form-control" min="0.5" step="0.5" placeholder="—" readonly />
+                        </div>
+                        <div class="mb-3">
+                            <label>Lý do / Ghi chú</label>
+                            <input type="text" id="assignReason" class="form-control" maxlength="300" placeholder="Nghỉ phép năm..." />
+                        </div>
+                        <button class="btn btn-primary w-100 ts-submit mb-0" id="assignBtn" onclick="submitAssign()">
+                            <i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ
+                        </button>
+                        <div id="assignResults" class="mt-3"></div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ══════════════════ TAB 4: LỊCH TÔI SẮP ══════════════════ -->
+        <!-- ══════════════════ LỊCH TÔI ĐÃ SẮP ══════════════════ -->
         <div class="tab-pane fade" id="tab-myassign" role="tabpanel">
-            <!-- Summary cards -->
-            <div class="row mb-3" id="myAssignSummary">
-                <div class="col-6 col-xl-3 mb-3">
-                    <div class="card text-center py-3 h-100">
-                        <div class="text-xs text-uppercase text-secondary fw-bold mb-1">Tổng sắp lịch</div>
-                        <div class="h4 fw-bold mb-0" id="maTotal">-</div>
-                    </div>
-                </div>
-                <div class="col-6 col-xl-3 mb-3">
-                    <div class="card text-center py-3 h-100" style="border-left:4px solid #f59e0b;">
-                        <div class="text-xs text-uppercase fw-bold mb-1" style="color:#b45309;">Chưa tiếp nhận</div>
-                        <div class="h4 fw-bold mb-0 text-warning" id="maPending">-</div>
-                    </div>
-                </div>
-                <div class="col-6 col-xl-3 mb-3">
-                    <div class="card text-center py-3 h-100" style="border-left:4px solid #10b981;">
-                        <div class="text-xs text-uppercase fw-bold mb-1 text-success">Đã tiếp nhận</div>
-                        <div class="h4 fw-bold mb-0 text-success" id="maConfirmed">-</div>
-                    </div>
-                </div>
+            <div class="ts-stats" id="myAssignSummary">
+                <div class="ts-stat"><div>Tổng sắp lịch</div><b id="maTotal">-</b></div>
+                <div class="ts-stat warn"><div>Chưa tiếp nhận</div><b id="maPending">-</b></div>
+                <div class="ts-stat ok"><div>Đã tiếp nhận</div><b id="maConfirmed">-</b></div>
             </div>
-            <div class="card">
-                <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-                    <div class="bg-gradient-primary shadow-primary border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <h6 class="text-white mb-0"><i class="bi bi-person-check me-1"></i> Lịch Nghỉ Tôi Đã Sắp</h6>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <select id="maStatusFilter" class="form-select form-select-sm" style="width:150px;height:30px;font-size:.8rem;" onchange="loadMyAssign(1)">
-                                <option value="">Tất cả</option>
-                                <option value="ASSIGNED">Chưa tiếp nhận thông tin</option>
-                                <option value="CONFIRMED">Đã tiếp nhận thông tin</option>
-                            </select>
-                            <div class="empcd-wrap">
-                                <i class="bi bi-search"></i>
-                                <input type="text" id="maEmpFilter" class="empcd-filter" placeholder="Mã NV..." oninput="onMaEmpInput()">
-                            </div>
-                        </div>
+            <div class="ts-card">
+                <div class="ts-toolbar">
+                    <select id="maStatusFilter" class="form-select" onchange="loadMyAssign(1)">
+                        <option value="">Tất cả</option>
+                        <option value="ASSIGNED">Chưa tiếp nhận</option>
+                        <option value="CONFIRMED">Đã tiếp nhận</option>
+                    </select>
+                    <div class="ts-search">
+                        <i class="bi bi-search"></i>
+                        <input type="search" id="maEmpFilter" placeholder="Tìm mã NV hoặc tên..." oninput="onMaEmpInput()" autocomplete="off">
                     </div>
                 </div>
-                <div class="card-body px-0 pt-0 pb-2 mt-3">
-                    <div class="table-responsive px-4">
-                        <table class="table align-items-center mb-0 w-100 table-hover table-striped">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="hidden">#</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="detail" data-mobile-label="Số ngày">Số ngày</th>
-                                    <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-9 px-2"
-                                        data-mobile="detail" data-mobile-label="Ngày sắp">Ngày sắp</th>
-                                    <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-9"
-                                        data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Trạng thái">Trạng thái</th>
-                                </tr>
-                            </thead>
-                            <tbody id="myAssignBody"></tbody>
-                        </table>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center px-4 mt-2 mb-2">
-                        <div id="maCount" class="text-sm text-secondary"></div>
-                        <nav><ul class="pagination pagination-sm mb-0" id="maPagination"></ul></nav>
-                    </div>
+                <div class="table-responsive px-3">
+                    <table class="table ts-table align-items-center mb-0 w-100 table-hover">
+                        <thead>
+                            <tr>
+                                <th class="px-2" data-mobile="hidden">#</th>
+                                <th class="px-2" data-mobile="primary" data-mobile-slot="code" data-mobile-label="Mã NV">Mã NV</th>
+                                <th class="px-2" data-mobile="primary" data-mobile-slot="name" data-mobile-label="Họ & Tên">Họ &amp; Tên</th>
+                                <th class="px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Loại">Loại</th>
+                                <th class="px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Từ ngày">Từ ngày</th>
+                                <th class="px-2" data-mobile="detail" data-mobile-label="Đến ngày">Đến ngày</th>
+                                <th class="px-2" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Số ngày">Số ngày</th>
+                                <th class="px-2" data-mobile="detail" data-mobile-label="Ngày sắp">Ngày sắp</th>
+                                <th class="text-center" data-mobile="primary" data-mobile-slot="badge" data-mobile-label="Trạng thái">Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="myAssignBody"></tbody>
+                    </table>
+                </div>
+                <div class="ts-foot">
+                    <div id="maCount" class="text-sm text-secondary"></div>
+                    <nav><ul class="pagination pagination-sm mb-0" id="maPagination"></ul></nav>
                 </div>
             </div>
         </div>
@@ -379,26 +452,32 @@
     </div><!-- /tab-content -->
 </div>
 
-<!-- Action Modal (Tab 3) -->
+<!-- Thanh đáy tab Sắp lịch (điện thoại/tablet) -->
+<div class="ts-bar" id="tsBar">
+    <button type="button" class="btn d-none" id="tsBarBack" onclick="goStep(1)" aria-label="Quay lại chọn nhân viên"><i class="bi bi-arrow-left"></i></button>
+    <div class="ts-bar-count"><b id="tsBarNum">0 nhân viên</b><span id="tsBarHint">đã chọn</span></div>
+    <button type="button" class="btn btn-primary" id="tsBarBtn" onclick="assignBarGo()">Tiếp tục <i class="bi bi-arrow-right ms-1"></i></button>
+</div>
+
+<!-- Hộp xác nhận Duyệt / Từ chối -->
 <div class="modal fade" id="tsActionModal" tabindex="-1">
-    <div class="modal-dialog modal-sm">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
         <div class="modal-content">
             <div class="modal-header" id="tsActionHeader">
-                <h6 class="modal-title mb-0" id="tsActionTitle"></h6>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <h6 class="modal-title mb-0 fw-bold" id="tsActionTitle"></h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Đóng"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="tsActionId" />
                 <input type="hidden" id="tsActionType" />
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Ghi chú (không bắt buộc)</label>
-                    <textarea id="tsActionComment" class="form-control form-control-sm" rows="2" maxlength="200"></textarea>
-                </div>
-                <div id="tsActionError" class="alert alert-danger d-none py-1 px-2 text-sm"></div>
+                <div class="ts-act-who" id="tsActionWho"></div>
+                <label class="form-label small fw-bold">Ghi chú (không bắt buộc)</label>
+                <textarea id="tsActionComment" class="form-control" rows="2" maxlength="200" style="border-radius:12px;"></textarea>
+                <div id="tsActionError" class="alert alert-danger d-none py-1 px-2 text-sm mt-2 mb-0"></div>
             </div>
-            <div class="modal-footer py-2">
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Huỷ</button>
-                <button class="btn btn-sm text-white" id="tsActionConfirm" onclick="submitApprovalAction()">Xác Nhận</button>
+            <div class="modal-footer py-2 gap-2 flex-nowrap">
+                <button class="btn btn-light" data-bs-dismiss="modal">Huỷ</button>
+                <button class="btn text-white" id="tsActionConfirm" onclick="submitApprovalAction()">Xác nhận</button>
             </div>
         </div>
     </div>
@@ -427,12 +506,8 @@
 @section Scripts {
 <script>
 const NO_DATA_IMG = '@(new Random().Next(2)==0 ? Url.Content("~/assets/img/illustrations/A_nodata.png") : Url.Content("~/assets/img/illustrations/Chi_nodata.png"))';
-function emptyRow(msg, cols=9) {
-    return `<tr><td colspan="${cols}" class="text-center py-5">
-        <img src="${NO_DATA_IMG}" style="width:130px;opacity:.85;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">
-        <div class="text-muted text-sm">${msg}</div>
-    </td></tr>`;
-}
+function emptyHtml(msg) { return `<div class="ts-empty"><img src="${NO_DATA_IMG}" alt="">${msg}</div>`; }
+function emptyRow(msg, cols=9) { return `<tr><td colspan="${cols}">${emptyHtml(msg)}</td></tr>`; }
 
 const MY_ASSIGN_URL  = '@Url.Action("GetMyAssignmentsPage",   "Leave")';
 const ASSIGN_URL     = '@Url.Action("AssignLeave",            "Leave")';
@@ -440,8 +515,8 @@ const APPROVE_URL    = '@Url.Action("ApproveRequest",         "Leave")';
 const REJECT_URL     = '@Url.Action("RejectRequest",          "Leave")';
 const PAGE_URL       = '@Url.Action("GetApprovalListPage",    "Leave")';
 const SIG_URL        = '@Url.Action("GetSignature",           "Image")';
-const EMP_SCOPE_URL  = '@Url.Action("GetEmpByScope",          "Dropdown")';
-const BALANCE_URL    = '@Url.Action("GetAnnualLeaveBalance",  "Leave")';
+const EMP_PAGE_URL    = '@Url.Action("GetAssignEmps",       "Leave")';
+const EMP_FILTERS_URL = '@Url.Action("GetAssignEmpFilters", "Leave")';
 const CURRENT_ROLE  = '@ViewBag.CurrentRole';
 const CURRENT_EMPCD = '@ViewBag.CurrentEmpCd';
 const CAN_ASSIGN    = ['Supervisor','DeputyManager','Manager','Admin'].includes(CURRENT_ROLE);
@@ -450,12 +525,11 @@ const ROLE_LEVELS   = { Admin:99, Expat:5, Manager:4, DeputyManager:3, Superviso
 const MY_LEVEL      = ROLE_LEVELS[CURRENT_ROLE] || 1;
 
 let curMonth = @curMonth, curYear = @curYear;
-let allEmps       = [];
-let empBalanceMap = {};
 let empLoaded     = false;
-let apvLoaded    = false;
-let maLoaded     = false;
+let maLoaded      = false;
+const selected    = new Map();      // NV đã chọn: mã → { name, left } — giữ nguyên khi chuyển trang / tìm / lọc
 let apvStatus = '', apvPage = 1, apvTotal = 0, apvTotalPages = 0, apvPageSize = 20;
+let apvItems  = {};                 // REQUEST_ID -> đơn (để hộp xác nhận nói rõ đơn của ai)
 let maPage = 1, maTotal = 0, maTotalPages = 0, maPageSize = 20;
 let apvEmpTimeout, maEmpTimeout;
 
@@ -466,9 +540,11 @@ const LEAVE_COLOR = { AL:'primary', CL:'info', SL:'danger', NPL:'secondary', OTH
 // Loại bắt buộc nộp giấy tờ chứng minh — để quản lý xem NV mình đã nộp giấy đủ chưa.
 const DOC_REQUIRED_TYPES = ['SI', 'DT', 'DC', 'VS', 'KT'];
 
-function docDetailBtnHtml(item) {
+function docDetailBtnHtml(item, asLink) {
     if (!DOC_REQUIRED_TYPES.includes(item.LEAVE_TYPE)) return '';
-    return `<button class="btn btn-outline-secondary btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="event.stopPropagation();viewDocDetail('${item.REQUEST_ID}')"><i class="bi bi-eye"></i> Đã nộp giấy?</button>`;
+    return asLink
+        ? `<button type="button" class="ts-link" onclick="viewDocDetail('${item.REQUEST_ID}')"><i class="bi bi-file-earmark-check me-1"></i>Đã nộp giấy?</button>`
+        : `<button class="btn btn-outline-secondary btn-sm py-0 px-1 mt-1" style="font-size:.68rem;" onclick="event.stopPropagation();viewDocDetail('${item.REQUEST_ID}')"><i class="bi bi-eye"></i> Đã nộp giấy?</button>`;
 }
 const docDetailModal = new bootstrap.Modal(document.getElementById('docDetailModal'));
 async function viewDocDetail(requestId) {
@@ -508,115 +584,240 @@ function updateMonthLabel() {
     $('.month-label-display').text(MONTHS_VI[curMonth-1] + ' / ' + curYear);
 }
 
-// ─── Tab 2 ───────────────────────────────────────────────────────
+// ─── Sắp lịch ────────────────────────────────────────────────────
+// Danh sách NV PHÂN TRANG BẰNG SQL (Leave/GetAssignEmps): mỗi lần chỉ tải 1 trang 30 NV + phép còn lại của
+// đúng 30 NV đó. Trước đây tải 1 lần toàn bộ phạm vi (vài trăm NV) + phép năm của tất cả → mở tab chậm.
+// NV đã chọn giữ trong `selected` (mã → tên + phép còn lại) nên chuyển trang / đổi lọc không mất.
+const EMP_PAGE_SIZE = 30;
+let empPage = 1, empTotal = 0, empPages = 0, empReq = 0, empSearchTimer;
+let filterRows = [];
+
+function empQuery() {
+    return {
+        search: ($('#empSearch').val() || '').trim(),
+        dept:   $('#filterEmpDept').val() || '',
+        line:   $('#filterEmpLine').val() || '',
+        work:   $('#filterEmpWork').val() || ''
+    };
+}
+
 function loadEmps() {
     if (empLoaded) return;
     empLoaded = true;
-    $.when(
-        $.get(EMP_SCOPE_URL),
-        $.get(BALANCE_URL)
-    ).done(function(empRes, balRes) {
-        // Không cho Quản lý/Supervisor tự chọn chính mình vào danh sách sắp lịch nghỉ (phải tự nộp
-        // đơn như nhân viên thường) — chặn cả ở đây (UI) và ở backend (LeaveController.Assign).
-        allEmps = (empRes[0] || []).filter(e => e.empcd !== CURRENT_EMPCD);
-        const balData = (balRes[0]?.data) || [];
-        empBalanceMap = {};
-        balData.forEach(b => { empBalanceMap[b.EMPCD] = b; });
+    $.get(EMP_FILTERS_URL).done(function (res) {
+        filterRows = (res && res.data) || [];
         buildDeptOptions();
-        renderEmpList(allEmps);
-    }).fail(function() {
-        $('#empList').html('<div class="text-center py-3 text-danger text-sm"><i class="bi bi-exclamation-triangle me-1"></i>Lỗi tải danh sách nhân viên</div>');
+    });
+    loadEmpPage(1);
+}
+
+function loadEmpPage(page) {
+    empPage = page;
+    const my = ++empReq;                       // gõ tìm nhanh: chỉ nhận kết quả của lần gọi mới nhất
+    $('#empList').html('<div class="ts-empty"><div class="spinner-border spinner-border-sm me-2" role="status"></div> Đang tải...</div>');
+    $.get(EMP_PAGE_URL, Object.assign(empQuery(), { page, page_size: EMP_PAGE_SIZE }))
+        .done(function (res) {
+            if (my !== empReq) return;
+            if (!res || !res.success) {
+                empLoaded = false;
+                $('#empList').html(`<div class="ts-empty text-danger"><i class="bi bi-exclamation-triangle me-1"></i>${escHtml((res && res.message) || 'Lỗi tải danh sách nhân viên')}</div>`);
+                $('#empPager').empty();
+                return;
+            }
+            empTotal = res.total || 0;
+            empPages = res.total_pages || 0;
+            renderEmpList(res.data || []);
+            renderEmpPager();
+            $('#btnSelectAll').html(`<i class="bi bi-check2-all me-1"></i>Chọn tất cả${empTotal ? ' (' + empTotal + ')' : ''}`);
+        })
+        .fail(function () {
+            if (my !== empReq) return;
+            empLoaded = false;
+            $('#empList').html('<div class="ts-empty text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Lỗi kết nối — thử lại</div>');
+        });
+}
+
+function empLeaveBadge(left) {
+    if (left == null) return '';
+    if (left <= 0)  return `<span class="leave-badge lb-empty">Hết phép</span>`;
+    if (left <= 3)  return `<span class="leave-badge lb-low">${left} ngày</span>`;
+    return `<span class="leave-badge lb-ok">${left} ngày</span>`;
+}
+
+let pageEmps = {};                 // mã → NV của trang đang xem (để lưu tên/phép khi bấm chọn)
+function renderEmpList(emps) {
+    pageEmps = {};
+    emps.forEach(e => { pageEmps[e.empcd] = e; });
+    if (!emps.length) {
+        $('#empList').html('<div class="ts-empty"><i class="bi bi-people fs-4 d-block mb-2"></i>Không có nhân viên phù hợp</div>');
+        return;
+    }
+    $('#empList').html(emps.map(e => {
+        const cd = e.empcd || '';
+        const on = selected.has(cd);
+        return `<label class="emp-item ${on ? 'checked' : ''}" data-empcd="${escHtml(cd)}">
+            <input type="checkbox" class="emp-chk" value="${escHtml(cd)}" ${on ? 'checked' : ''} onchange="toggleEmp(this)" />
+            <span data-emp-photo="${escHtml(cd)}" data-emp-name="${escHtml(e.name||'')}"></span>
+            <div class="emp-info">
+                <div class="emp-name vni-font">${escHtml(e.name||'')}</div>
+                <div class="emp-dept"><span class="emp-code">${escHtml(cd)}</span>${e.dept_name ? ' · ' + escHtml(e.dept_name) : ''}${e.line_name ? ' / ' + escHtml(e.line_name) : ''}</div>
+            </div>
+            ${empLeaveBadge(e.LEFT_NUM)}
+        </label>`;
+    }).join(''));
+}
+// Đánh dấu lại ô tick theo `selected` mà không tải lại trang
+function syncEmpChecks() {
+    document.querySelectorAll('#empList .emp-chk').forEach(c => {
+        c.checked = selected.has(c.value);
+        c.closest('.emp-item')?.classList.toggle('checked', c.checked);
     });
 }
 
-function empLeaveBadge(empcd) {
-    const b = empBalanceMap[empcd];
-    if (!b) return '';
-    const left = b.LEFT_NUM ?? 0;
-    if (left <= 0)  return `<span class="leave-badge" style="background:#fee2e2;color:#b91c1c;">Hết phép</span>`;
-    if (left <= 3)  return `<span class="leave-badge" style="background:#fef3c7;color:#92400e;">${left} ngày</span>`;
-    return `<span class="leave-badge" style="background:#dcfce7;color:#166534;">${left} ngày</span>`;
-}
-function empLeaveClass(empcd) {
-    const b = empBalanceMap[empcd];
-    if (!b) return '';
-    const left = b.LEFT_NUM ?? 0;
-    if (left <= 0) return 'leave-empty';
-    if (left <= 3) return 'leave-low';
-    return 'leave-ok';
-}
-
-function renderEmpList(emps) {
-    if (!emps.length) {
-        $('#empList').html('<div class="text-center py-4 text-muted text-sm"><i class="bi bi-people fs-4 d-block mb-2"></i>Không có nhân viên trong phạm vi</div>');
-        return;
+function renderEmpPager() {
+    if (!empTotal) { $('#empPager').empty(); return; }
+    const s = (empPage - 1) * EMP_PAGE_SIZE + 1, e = Math.min(empPage * EMP_PAGE_SIZE, empTotal);
+    const $info = $('<span>').html(`${s}–${e} / <strong>${empTotal}</strong> nhân viên`);
+    const $ul = $('<ul class="pagination pagination-sm mb-0">');
+    const mk = (label, p, disabled, active) => {
+        const li = $('<li class="page-item">').toggleClass('disabled', !!disabled).toggleClass('active', !!active);
+        $('<a class="page-link">').html(label).on('click', () => { if (!disabled && !active) goEmpPage(p); }).appendTo(li);
+        return li;
+    };
+    if (empPages > 1) {
+        $ul.append(mk('&lsaquo;', empPage - 1, empPage <= 1));
+        const from = Math.max(1, empPage - 2), to = Math.min(empPages, empPage + 2);
+        for (let p = from; p <= to; p++) $ul.append(mk(p, p, false, p === empPage));
+        $ul.append(mk('&rsaquo;', empPage + 1, empPage >= empPages));
     }
-    $('#empList').html(emps.map(e => `
-        <label class="emp-item ${empLeaveClass(e.empcd||'')}" data-empcd="${escHtml(e.empcd||'')}" data-name="${escHtml(e.name||'')}">
-            <input type="checkbox" class="emp-chk" value="${escHtml(e.empcd||'')}" onchange="updateSelCount()" />
-            <div class="emp-info flex-grow-1 min-width-0">
-                <div class="emp-name vni-font">${escHtml(e.name||'')}</div>
-                <div class="emp-dept">${escHtml(e.dept_name||'')}${e.line_name ? ' / ' + escHtml(e.line_name) : ''}</div>
-            </div>
-            <span class="emp-code">${escHtml(e.empcd||'')}</span>
-            ${empLeaveBadge(e.empcd||'')}
-        </label>`).join(''));
-    updateSelCount();
+    $('#empPager').empty().append($info, $('<nav>').append($ul));
+}
+function goEmpPage(p) {
+    loadEmpPage(p);
+    document.getElementById('empList').scrollTop = 0;
+    document.getElementById('assignColList').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// 3 ô lọc bộ phận → line → nhóm (lọc theo MÃ, danh sách lấy 1 lần từ Leave/GetAssignEmpFilters)
+function fillSelect(id, label, rows, codeKey, nameKey) {
+    const seen = new Set(), $s = $('#' + id).empty().append(`<option value="">${label}</option>`);
+    rows.forEach(r => {
+        const c = r[codeKey]; if (!c || seen.has(c)) return; seen.add(c);
+        $s.append(`<option value="${escHtml(c)}">${escHtml(r[nameKey] || c)}</option>`);
+    });
+    $s.prop('disabled', seen.size === 0);
+}
 function buildDeptOptions() {
-    const depts = [...new Set(allEmps.map(e => e.dept_name||'').filter(Boolean))].sort();
-    const $d = $('#filterEmpDept').empty().append('<option value="">Tất cả bộ phận</option>');
-    depts.forEach(d => $d.append(`<option value="${escHtml(d)}">${escHtml(d)}</option>`));
+    fillSelect('filterEmpDept', 'Tất cả bộ phận', filterRows, 'dept', 'dept_name');
     buildLineOptions('');
     buildWorkOptions('', '');
 }
-
 function buildLineOptions(dept) {
-    const src = dept ? allEmps.filter(e => (e.dept_name||'') === dept) : allEmps;
-    const lines = [...new Set(src.map(e => e.line_name||'').filter(Boolean))].sort();
-    const $l = $('#filterEmpLine').empty().append('<option value="">Tất cả line</option>');
-    lines.forEach(l => $l.append(`<option value="${escHtml(l)}">${escHtml(l)}</option>`));
-    $l.prop('disabled', !lines.length);
+    fillSelect('filterEmpLine', 'Tất cả line', filterRows.filter(r => !dept || r.dept === dept), 'line', 'line_name');
 }
-
 function buildWorkOptions(dept, line) {
-    let src = allEmps;
-    if (dept) src = src.filter(e => (e.dept_name||'') === dept);
-    if (line) src = src.filter(e => (e.line_name||'') === line);
-    const works = [...new Set(src.map(e => e.work_name||'').filter(Boolean))].sort();
-    const $w = $('#filterEmpWork').empty().append('<option value="">Tất cả nhóm việc</option>');
-    works.forEach(w => $w.append(`<option value="${escHtml(w)}">${escHtml(w)}</option>`));
-    $w.prop('disabled', !works.length);
+    fillSelect('filterEmpWork', 'Tất cả nhóm việc',
+        filterRows.filter(r => (!dept || r.dept === dept) && (!line || r.line === line)), 'work', 'work_name');
 }
-
 function onDeptFilter() {
     buildLineOptions($('#filterEmpDept').val());
     buildWorkOptions($('#filterEmpDept').val(), '');
-    filterEmps();
+    loadEmpPage(1);
 }
-
 function onLineFilter() {
     buildWorkOptions($('#filterEmpDept').val(), $('#filterEmpLine').val());
-    filterEmps();
+    loadEmpPage(1);
+}
+// Ô tìm gọi qua đây (chờ gõ xong 350ms); ô "nhóm việc" cũng gọi filterEmps
+function filterEmps() {
+    clearTimeout(empSearchTimer);
+    empSearchTimer = setTimeout(() => loadEmpPage(1), 350);
 }
 
-function filterEmps() {
-    const q    = ($('#empSearch').val() || '').trim().toUpperCase();
-    const dept = $('#filterEmpDept').val() || '';
-    const line = $('#filterEmpLine').val() || '';
-    const work = $('#filterEmpWork').val() || '';
-    let list = allEmps;
-    if (dept) list = list.filter(e => (e.dept_name||'') === dept);
-    if (line) list = list.filter(e => (e.line_name||'') === line);
-    if (work) list = list.filter(e => (e.work_name||'') === work);
-    if (q)    list = list.filter(e => (e.empcd||'').toUpperCase().includes(q) || (e.name||'').toUpperCase().includes(q));
-    renderEmpList(list);
+function toggleEmp(chk) {
+    if (chk.checked) {
+        const e = pageEmps[chk.value] || {};
+        selected.set(chk.value, { name: e.name || chk.value, left: e.LEFT_NUM ?? null });
+    } else selected.delete(chk.value);
+    chk.closest('.emp-item')?.classList.toggle('checked', chk.checked);
+    updateSelCount();
 }
-function selectAllEmps()  { $('#empList .emp-chk:visible').prop('checked', true); updateSelCount(); }
-function clearAllEmps()   { $('#empList .emp-chk').prop('checked', false); updateSelCount(); }
-function updateSelCount() { $('#selCount').text($('#empList .emp-chk:checked').length + ' NV được chọn'); }
-function getSelectedEmpcds() { return $('#empList .emp-chk:checked').map(function() { return $(this).val(); }).get(); }
+// "Chọn tất cả" = MỌI NV khớp tìm/lọc hiện tại, ở TẤT CẢ các trang (hỏi server danh sách mã, không phải chỉ trang đang xem)
+async function selectAllEmps() {
+    const $b = $('#btnSelectAll').prop('disabled', true);
+    try {
+        const res = await $.get(EMP_PAGE_URL, Object.assign(empQuery(), { all: true }));
+        if (!res || !res.success) { showToast((res && res.message) || 'Không lấy được danh sách', 'error'); return; }
+        let added = 0;
+        (res.data || []).forEach(e => {
+            if (!e.empcd || selected.has(e.empcd)) return;
+            selected.set(e.empcd, { name: e.name || e.empcd, left: e.LEFT_NUM ?? null });
+            added++;
+        });
+        syncEmpChecks();
+        updateSelCount();
+        showToast(added ? `Đã chọn thêm ${added} nhân viên (tổng ${selected.size})` : 'Tất cả nhân viên đang lọc đã được chọn', 'success');
+    } catch { showToast('Lỗi kết nối', 'error'); }
+    finally { $b.prop('disabled', false); }
+}
+function clearAllEmps()   { selected.clear(); syncEmpChecks(); updateSelCount(); }
+function unpickEmp(cd)    { selected.delete(cd); syncEmpChecks(); updateSelCount(); }
+function getSelectedEmpcds() { return [...selected.keys()]; }
+function updateSelCount() {
+    const n = selected.size;
+    $('#selCount').text(n + ' NV');
+    $('#step2Hint').html(n
+        ? `Sắp lịch nghỉ cho <b>${n} nhân viên</b> dưới đây. Bấm <b>×</b> để bỏ bớt, rồi chọn ngày nghỉ.`
+        : 'Chưa chọn nhân viên nào — bấm <b>← Chọn nhân viên</b> ở dưới để quay lại bước 1.');
+    $('#selPicked').html([...selected].map(([cd, info]) => {
+        return `<span class="ts-pick"><span class="vni-font">${escHtml(info.name || cd)}</span><button type="button" onclick="unpickEmp('${escHtml(cd)}')" aria-label="Bỏ">×</button></span>`;
+    }).join(''));
+    updateAssignBar();
+}
+
+// Điện thoại/tablet: 2 bước tách hẳn (Bước 1 chọn NV → Bước 2 chọn ngày), thanh đáy dẫn đường.
+// Máy tính: 2 cột cạnh nhau như cũ, assignStep không ảnh hưởng gì.
+let assignStep = 1;
+function goStep(n) {
+    if (n === 2 && !selected.size) { showToast('Chọn ít nhất 1 nhân viên trước đã', 'warning'); return; }
+    assignStep = n;
+    document.getElementById('tab-assign').classList.toggle('step-2', n === 2);
+    $('#tsStp1').toggleClass('on', n === 1).toggleClass('done', n === 2);
+    $('#tsStp1 span').text(n === 2 ? '✓' : '1');
+    $('#tsStp2').toggleClass('on', n === 2);
+    updateAssignBar();
+    if (window.innerWidth < 992) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function updateAssignBar() {
+    const n = selected.size;
+    const ready = n > 0 && $('#assignFromDate').val() && $('#assignToDate').val();
+    $('#tsBarNum').text(n + ' nhân viên');
+    $('#tsBarBack').toggleClass('d-none', assignStep !== 2);
+    let hint, btn, cls = 'btn-primary';
+    if (assignStep === 1) {
+        hint = n ? 'đã chọn' : 'bấm vào tên để chọn';
+        btn  = 'Tiếp tục <i class="bi bi-arrow-right ms-1"></i>';
+    } else if (!n) {
+        hint = 'chưa chọn ai';
+        btn  = '<i class="bi bi-arrow-left me-1"></i>Chọn nhân viên';
+    } else {
+        hint = ready ? 'sẵn sàng sắp lịch' : 'chọn Từ ngày – Đến ngày';
+        btn  = '<i class="bi bi-send me-1"></i>Sắp lịch';
+        cls  = ready ? 'btn-success' : 'btn-secondary';
+    }
+    $('#tsBarHint').text(hint);
+    $('#tsBarBtn').html(btn).removeClass('btn-primary btn-success btn-secondary').addClass(cls);
+}
+function assignBarGo() {
+    if (assignStep === 1) { goStep(2); return; }
+    if (!selected.size) { goStep(1); return; }
+    if (!$('#assignFromDate').val() || !$('#assignToDate').val()) {
+        showToast('Chọn Từ ngày và Đến ngày nghỉ', 'warning');
+        document.getElementById('assignFromDate').focus();
+        return;
+    }
+    submitAssign();
+}
 
 function isSunday(dateStr) {
     if (!dateStr) return false;
@@ -629,15 +830,21 @@ function calcAssignDays() {
     if (f && isSunday(f)) {
         $('#assignFromDate').val('');
         showToast('Từ ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning');
+        updateAssignBar();
         return;
     }
     if (t && isSunday(t)) {
         $('#assignToDate').val('');
         showToast('Đến ngày không được là Chủ Nhật (công ty làm T2–T7)', 'warning');
+        updateAssignBar();
         return;
     }
-    if (f && t) {
-        const pf = f.split('-'), pt = t.split('-');
+    // Chọn "Từ ngày" mà chưa có "Đến ngày" (hoặc đến < từ) → đặt luôn bằng từ ngày (nghỉ 1 ngày) cho đỡ 1 bước
+    if (f && (!t || t < f)) $('#assignToDate').val(f);
+    $('#assignToDate').attr('min', f || '@todayMin');
+    const t2 = $('#assignToDate').val();
+    if (f && t2) {
+        const pf = f.split('-'), pt = t2.split('-');
         const d1 = Date.UTC(+pf[0], +pf[1]-1, +pf[2]);
         const d2 = Date.UTC(+pt[0], +pt[1]-1, +pt[2]);
         if (d2 >= d1) {
@@ -648,6 +855,7 @@ function calcAssignDays() {
             $('#assignTotalDays').val(count);
         }
     }
+    updateAssignBar();
 }
 
 async function submitAssign() {
@@ -666,28 +874,31 @@ async function submitAssign() {
     if (!days || days <= 0) { showToast('Số ngày nghỉ không hợp lệ', 'warning'); return; }
     if (leaveType !== 'AL' && !reason) { showToast('Vui lòng nhập lý do nghỉ', 'warning'); return; }
 
+    const showResults = () => document.getElementById('assignResults').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
     // Cảnh báo nhân viên không đủ phép năm nếu chọn loại AL
     if (leaveType === 'AL') {
         const notEnough = empList.filter(cd => {
-            const b = empBalanceMap[cd];
-            return b != null && (b.LEFT_NUM ?? 0) < days;
+            const left = selected.get(cd)?.left;
+            return left != null && left < days;
         });
         if (notEnough.length > 0) {
             const names = notEnough.map(cd => {
-                const emp = allEmps.find(e => e.empcd === cd);
-                const left = empBalanceMap[cd]?.LEFT_NUM ?? 0;
-                return `<strong>${cd}</strong> ${emp ? `<span class="vni-font">${escHtml(emp.name)}</span>` : ''} (còn ${left} ngày)`;
+                const info = selected.get(cd);
+                return `<strong>${cd}</strong> <span class="vni-font">${escHtml(info?.name || '')}</span> (còn ${info?.left ?? 0} ngày)`;
             }).join('<br>');
-            $('#assignResults').html(`<div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.82rem;">
+            $('#assignResults').html(`<div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.85rem;">
                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
                 <strong>Lưu ý:</strong> ${notEnough.length} nhân viên không đủ phép năm cho ${days} ngày:<br>${names}<br>
                 <small class="text-muted">Vui lòng đổi loại nghỉ hoặc điều chỉnh số ngày cho phù hợp.</small>
             </div>`);
+            showResults();
             return;
         }
     }
 
-    const $btn = $('#assignBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...');
+    const $btn = $('#assignBtn, #tsBarBtn').prop('disabled', true);
+    $('#assignBtn').html('<span class="spinner-border spinner-border-sm me-1"></span>Đang kiểm tra...');
     $('#assignResults').empty();
     try {
         // Kiểm tra overlap: NV đã có đơn PENDING hoặc APPROVED trong khoảng ngày này
@@ -709,23 +920,24 @@ async function submitAssign() {
                     const st = r.STATUS === 'APPROVED'
                         ? '<span class="badge bg-success">Đã duyệt</span>'
                         : '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
-                    const emp  = allEmps.find(e => e.empcd === r.EMPCD);
-                    const name = emp ? `<span class="vni-font ms-1">${escHtml(emp.name)}</span>` : '';
+                    const info = selected.get(r.EMPCD);
+                    const name = info ? `<span class="vni-font ms-1">${escHtml(info.name)}</span>` : '';
                     return `<div class="result-item err d-flex align-items-center gap-2 flex-wrap">
                         <strong>${escHtml(r.EMPCD)}</strong>${name} ${st}
                         <span class="text-muted" style="font-size:.75rem;">${formatDate(r.FROM_DATE)} – ${formatDate(r.TO_DATE)}</span>
                     </div>`;
                 }).join('');
                 $('#assignResults').html(`
-                    <div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.82rem;">
+                    <div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.85rem;">
                         <i class="bi bi-exclamation-triangle-fill me-1"></i>
                         <strong>${conflicts.length} nhân viên</strong> đã có đơn nghỉ phép trùng khoảng ngày này — vui lòng kiểm tra và phối hợp nội bộ:
                     </div>${rows}`);
+                showResults();
                 return;
             }
         }
 
-        $btn.html('<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý...');
+        $('#assignBtn').html('<span class="spinner-border spinner-border-sm me-1"></span>Đang xử lý...');
         const res = await $.ajax({ url: ASSIGN_URL, type: 'POST', contentType: 'application/json',
             data: JSON.stringify({ ASSIGNER_EMPCD: '', TARGET_EMPCDS: empList, LEAVE_TYPE: leaveType, FROM_DATE: from, TO_DATE: to, TOTAL_DAYS: days, REASON: reason }) });
         if (res.results?.length) {
@@ -734,20 +946,26 @@ async function submitAssign() {
                 const ico = r.success ? '<i class="bi bi-check-circle me-1"></i>' : '<i class="bi bi-x-circle me-1"></i>';
                 return `<div class="result-item ${cls}">${ico}<strong>${escHtml(r.empcd||'')}</strong>: ${escHtml(r.message||'')}</div>`;
             }).join(''));
+            showResults();
         }
-        if (res.success) { showToast(res.message || 'Đã sắp lịch thành công', 'success'); clearAllEmps(); }
+        if (res.success) { showToast(res.message || 'Đã sắp lịch thành công', 'success'); clearAllEmps(); maLoaded = false; }
         else showToast(res.message || 'Có lỗi xảy ra', 'error');
     } catch { showToast('Lỗi kết nối', 'error'); }
-    finally  { $btn.prop('disabled', false).html('<i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ'); }
+    finally  {
+        $btn.prop('disabled', false);
+        $('#assignBtn').html('<i class="bi bi-send me-1"></i> Sắp Lịch Nghỉ');
+        updateAssignBar();
+    }
 }
 
-// ─── Tab 3 ───────────────────────────────────────────────────────
+// ─── Duyệt ───────────────────────────────────────────────────────
 function changeApprovalMonth(delta) {
     curMonth += delta;
     if (curMonth > 12) { curMonth = 1; curYear++; }
     if (curMonth < 1)  { curMonth = 12; curYear--; }
     updateMonthLabel();
     loadApproval(1);
+    loadPendingBadge();
 }
 
 function setApvStatus(s) {
@@ -762,113 +980,171 @@ function onApvEmpInput() {
     apvEmpTimeout = setTimeout(() => loadApproval(1), 400);
 }
 
-function buildApprovalRow(item, idx) {
-    const ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
-    const ltColor = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
-
-    let pendingDays = 0, isStale = false;
+// Tính sẵn mọi thứ hiển thị của 1 đơn — dùng chung cho bảng (web) và thẻ (điện thoại)
+function apvView(item) {
+    const v = {};
+    v.ltLabel = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
+    v.ltColor = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
+    v.pendingDays = 0; v.isStale = false;
     if (item.STATUS === 'PENDING' && item.CREATED_DATE) {
-        pendingDays = Math.floor((Date.now() - new Date(item.CREATED_DATE)) / 86400000);
-        isStale = pendingDays >= 15;
+        v.pendingDays = Math.floor((Date.now() - new Date(item.CREATED_DATE)) / 86400000);
+        v.isStale = v.pendingDays >= 15;
     }
+    v.ageHtml = item.STATUS === 'PENDING' && v.pendingDays > 0
+        ? `<span class="pending-age ${v.isStale ? 'stale' : ''}"><i class="bi bi-alarm me-1"></i>Đã ${v.pendingDays} ngày chờ</span>` : '';
+    const isSelf = item.EMPCD === CURRENT_EMPCD;
+    v.canAct = !isSelf && CAN_APPROVE && (ROLE_LEVELS[item.REQUESTER_ROLE]||1) < MY_LEVEL;
+    v.expired = isFromDateExpired(item.FROM_DATE);
+    // 'act' = được bấm Duyệt/Từ chối; còn lại là lý do không bấm được
+    v.state = item.STATUS !== 'PENDING' ? 'done' : !v.canAct ? 'higher' : v.expired ? 'expired' : 'act';
+    // 1 ngày: "23/11/2026"; khoảng ngày cùng năm: "21/11 → 23/11/2026" (gọn, không xuống dòng lung tung)
+    const fD = formatDate(item.FROM_DATE), tD = formatDate(item.TO_DATE);
+    v.dateStr = !item.TO_DATE || fD === tD ? fD
+              : (fD.slice(6) === tD.slice(6) ? fD.slice(0, 5) : fD) + ' → ' + tD;
+    v.dept = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean).map(escHtml).join(' / ');
+    const reqSig = item.EMPCD
+        ? `<div class="sig-cell-item"><div class="sig-cell-lbl">Người ký</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" loading="lazy" onerror="this.remove()" alt="Chữ ký"/></div>` : '';
+    const apSig = (item.STATUS !== 'PENDING' && item.FINAL_APPROVER)
+        ? `<div class="sig-cell-item"><div class="sig-cell-lbl">Người duyệt</div>
+               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" loading="lazy" onerror="this.remove()" alt="Chữ ký"/>
+               ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}</div>` : '';
+    v.sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
+    return v;
+}
 
+function buildApprovalRow(item, idx) {
+    const v = apvView(item);
     let statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chờ duyệt</span>`;
-    if (item.STATUS === 'PENDING' && pendingDays > 0) {
-        statusHtml += `<div class="pending-age ${isStale ? 'stale' : ''}"><i class="bi bi-alarm me-1"></i>Đã ${pendingDays} ngày chờ</div>`;
-    }
+    if (v.ageHtml) statusHtml += `<div>${v.ageHtml}</div>`;
     if (item.STATUS === 'APPROVED') statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã duyệt</span>`;
     if (item.STATUS === 'REJECTED') statusHtml = `<span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Từ chối</span>`;
-    const isSelf    = item.EMPCD === CURRENT_EMPCD;
-    const canAct    = !isSelf && CAN_APPROVE && (ROLE_LEVELS[item.REQUESTER_ROLE]||1) < MY_LEVEL;
-    const fromExpired = isFromDateExpired(item.FROM_DATE);
-    const actions   = item.STATUS !== 'PENDING'
-        ? '<span class="text-muted text-xs">-</span>'
-        : canAct
-            ? fromExpired
-                ? `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`
-                : `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openApvAction('${item.REQUEST_ID}','approve','${item.FROM_DATE||''}')"><i class="bi bi-check-lg"></i></button>
-               <button class="btn btn-xs btn-danger"       onclick="event.stopPropagation();openApvAction('${item.REQUEST_ID}','reject','${item.FROM_DATE||''}')"><i class="bi bi-x-lg"></i></button>`
-            : `<span class="text-warning text-xxs"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần cấp cao hơn</span>`;
-    const reqSig = item.EMPCD
-        ? `<div class="sig-cell-item">
-               <div class="sig-cell-lbl">Người ký</div>
-               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.EMPCD)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
-           </div>` : '';
-    const apSig = (item.STATUS !== 'PENDING' && item.FINAL_APPROVER)
-        ? `<div class="sig-cell-item">
-               <div class="sig-cell-lbl">Người duyệt</div>
-               <img src="${SIG_URL}?empCd=${encodeURIComponent(item.FINAL_APPROVER)}" class="sig-cell-img" onerror="this.remove()" alt="Chữ ký"/>
-               ${item.APPROVER_NAME ? `<div class="sig-cell-name vni-font">${escHtml(item.APPROVER_NAME)}</div>` : ''}
-           </div>` : '';
-    const sigCell = `<div class="sig-cell">${reqSig}${apSig}</div>`;
-
-    const deptParts = [item.DEPT_NAME, item.LINE_NAME, item.WORK_NAME].filter(Boolean);
-    const deptLine  = deptParts.length
-        ? `<div class="text-xs text-secondary mt-0" style="line-height:1.2;">${deptParts.map(escHtml).join(' / ')}</div>`
-        : '';
-    const empCell = `
+    const actions = v.state === 'done' ? '<span class="text-muted text-xs">-</span>'
+        : v.state === 'higher'  ? `<span class="text-warning text-xxs"><i class="bi bi-exclamation-triangle-fill me-1"></i>Cần cấp cao hơn</span>`
+        : v.state === 'expired' ? `<span class="text-muted text-xs"><i class="bi bi-clock-history me-1"></i>Đã quá hạn</span>`
+        : `<div class="ts-act">
+               <button class="btn btn-sm btn-success" onclick="openApvAction('${item.REQUEST_ID}','approve','${item.FROM_DATE||''}')"><i class="bi bi-check-lg me-1"></i>Duyệt</button>
+               <button class="btn btn-sm btn-outline-danger" onclick="openApvAction('${item.REQUEST_ID}','reject','${item.FROM_DATE||''}')">Từ chối</button>
+           </div>`;
+    const empCell = `<div class="d-flex align-items-center" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}"><div style="min-width:0">
         <div class="text-xs text-secondary">${escHtml(item.EMPCD||'')}</div>
         <div class="text-sm vni-font fw-bold" style="text-transform:uppercase;line-height:1.2;">${escHtml(item.EMP_NAME||'')}</div>
-        ${deptLine}
-    `;
-    const dateStr = `${formatDate(item.FROM_DATE)}${item.TO_DATE && item.TO_DATE !== item.FROM_DATE ? ' → ' + formatDate(item.TO_DATE) : ''}`;
-    const timeCell = `
-        <div class="ts-time-wrap">
-            <div class="ts-time-chip"><i class="bi bi-calendar-event me-1"></i>${dateStr}${item.TOTAL_DAYS != null ? ' · <b>' + item.TOTAL_DAYS + ' ngày</b>' : ''}</div>
-            ${item.CREATED_DATE ? `<div class="ts-time-created">Tạo: ${formatDateTime(item.CREATED_DATE)}</div>` : ''}
-        </div>
-    `;
+        ${v.dept ? `<div class="text-xs text-secondary ts-dept1" title="${v.dept}">${v.dept}</div>` : ''}
+    </div></div>`;
+    const timeCell = `<div class="ts-time-chip"><i class="bi bi-calendar-event me-1"></i>${v.dateStr}</div>
+        ${item.TOTAL_DAYS != null ? `<div class="text-xs fw-bold text-primary mt-1">${item.TOTAL_DAYS} ngày</div>` : ''}
+        ${item.CREATED_DATE ? `<div class="ts-time-created">Tạo: ${formatDateTime(item.CREATED_DATE)}</div>` : ''}`;
 
-    return `<tr class="${isStale ? 'row-stale-pending' : ''}">
+    return `<tr class="${v.isStale ? 'row-stale-pending' : ''}">
         <td class="px-2 text-xs text-secondary">${idx}</td>
         <td class="px-2">${empCell}</td>
-        <td class="px-2"><span class="badge bg-${ltColor}">${ltLabel}</span></td>
+        <td class="px-2"><span class="badge bg-${v.ltColor}">${v.ltLabel}</span></td>
         <td class="px-2">${timeCell}</td>
-        <td class="px-2 text-sm" style="min-width:220px;max-width:320px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
-        <td class="text-center">${statusHtml}${docDetailBtnHtml(item)}</td>
-        <td class="text-center">${sigCell}</td>
-        <td class="text-center">${actions}</td>
+        <td class="px-2 text-sm" style="min-width:110px;max-width:240px;white-space:normal;color:#475569;">${item.REASON ? escHtml(item.REASON) : '<span class="text-muted">-</span>'}</td>
+        <td class="text-center" style="max-width:150px;">${statusHtml}${docDetailBtnHtml(item, false)}
+            <div class="mt-1"><button type="button" class="ts-link" onclick="document.getElementById('sigd${item.REQUEST_ID}').classList.toggle('open')"><i class="bi bi-pen me-1"></i>Chữ ký</button>
+            <div class="ts-sig ts-sig-td" id="sigd${item.REQUEST_ID}">${v.sigCell}</div></div></td>
+        <td class="text-center text-nowrap">${actions}</td>
     </tr>`;
+}
+
+function buildApprovalCard(item) {
+    const v = apvView(item);
+    const st = item.STATUS === 'APPROVED' ? '<span class="ts-st approved">Đã duyệt</span>'
+             : item.STATUS === 'REJECTED' ? '<span class="ts-st rejected">Từ chối</span>'
+             : '<span class="ts-st pending">Chờ duyệt</span>';
+    const photo = window.HrEmpPhoto && HrEmpPhoto.enabled() ? HrEmpPhoto.avatarHtml(item.EMPCD, item.EMP_NAME, 'ep-av--card') : '';
+    const foot = v.state === 'act'
+        ? `<div class="ts-btns">
+               <button type="button" class="btn btn-reject" onclick="openApvAction('${item.REQUEST_ID}','reject','${item.FROM_DATE||''}')"><i class="bi bi-x-lg"></i>Từ chối</button>
+               <button type="button" class="btn btn-approve" onclick="openApvAction('${item.REQUEST_ID}','approve','${item.FROM_DATE||''}')"><i class="bi bi-check-lg"></i>Duyệt</button>
+           </div>`
+        : v.state === 'higher'  ? `<div class="ts-note"><i class="bi bi-exclamation-triangle-fill me-1"></i>Đơn này cần cấp cao hơn duyệt</div>`
+        : v.state === 'expired' ? `<div class="ts-note muted"><i class="bi bi-clock-history me-1"></i>Đã quá ngày nghỉ — không duyệt được nữa</div>`
+        : '';
+    const sigId = 'sig' + item.REQUEST_ID;
+    return `<div class="ts-item ${v.isStale ? 'stale' : ''}">
+        <div class="ts-item-top">
+            ${photo}
+            <div class="ts-who">
+                <div class="ts-name vni-font">${escHtml(item.EMP_NAME||'')}</div>
+                <div class="ts-sub"><b>${escHtml(item.EMPCD||'')}</b>${v.dept ? `<span class="ts-dept">${v.dept}</span>` : ''}</div>
+            </div>
+            ${st}
+        </div>
+        <div class="ts-item-mid">
+            <span class="badge bg-${v.ltColor}">${v.ltLabel}</span>
+            <span class="ts-date"><i class="bi bi-calendar-event me-1 text-secondary"></i>${v.dateStr}</span>
+            ${item.TOTAL_DAYS != null ? `<span class="ts-days">${item.TOTAL_DAYS} ngày</span>` : ''}
+        </div>
+        ${item.REASON ? `<div class="ts-reason">${escHtml(item.REASON)}</div>` : ''}
+        <div class="ts-meta">
+            ${v.ageHtml}
+            ${item.CREATED_DATE ? `<span>Tạo ${formatDateTime(item.CREATED_DATE)}</span>` : ''}
+            ${docDetailBtnHtml(item, true)}
+            <button type="button" class="ts-link" onclick="document.getElementById('${sigId}').classList.toggle('open')"><i class="bi bi-pen me-1"></i>Chữ ký</button>
+        </div>
+        <div class="ts-sig" id="${sigId}">${v.sigCell}</div>
+        ${foot}
+    </div>`;
 }
 
 function loadApproval(page = 1) {
     apvPage = page;
-    $('#approvalBody').html(`<tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>`);
-    MobileTableHelper.refresh('approvalBody');
+    const spin = '<div class="ts-empty"><div class="spinner-border text-primary" role="status"></div></div>';
+    $('#approvalBody').html(`<tr><td colspan="8">${spin}</td></tr>`);
+    $('#apvCards').html(spin);
     const range = getMonthRange();
     $.ajax({
         url: PAGE_URL, type: 'GET',
         data: { status: apvStatus, search: ($('#apvEmpFilter').val()||'').trim(), date_from: range.from, date_to: range.to, page, page_size: apvPageSize },
         success: function(res) {
             if (!res.success) {
-                $('#approvalBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
-                MobileTableHelper.refresh('approvalBody');
+                const err = `<div class="ts-empty text-danger">Lỗi: ${escHtml(res.message||'')}</div>`;
+                $('#approvalBody').html(`<tr><td colspan="8">${err}</td></tr>`);
+                $('#apvCards').html(err);
                 return;
             }
-            apvTotal = res.total || 0;
-            apvTotalPages = res.total_pages || 0;
+            // API: "total" = TỔNG mọi trạng thái (không theo bộ lọc), số theo từng trạng thái nằm ở "summary"
+            // → lọc "Chờ duyệt" mà lấy total thì phân trang ra 122 đơn / 7 trang dù chỉ có 1 đơn.
+            const sm = res.summary || {};
+            apvTotal = apvStatus ? (sm[apvStatus] ?? res.total ?? 0) : (res.total || 0);
+            apvTotalPages = Math.ceil(apvTotal / apvPageSize);
+            setChipCount('apv-all', sm.TOTAL); setChipCount('apv-pending', sm.PENDING);
+            setChipCount('apv-approved', sm.APPROVED); setChipCount('apv-rejected', sm.REJECTED);
             const data = res.data || [];
+            apvItems = {};
+            data.forEach(it => { apvItems[it.REQUEST_ID] = it; });
             if (!data.length) {
                 $('#approvalBody').html(emptyRow('Không có đơn nghỉ nào', 8));
+                $('#apvCards').html(emptyHtml('Không có đơn nghỉ nào'));
             } else {
                 $('#approvalBody').html(data.map((item,i) => buildApprovalRow(item,(page-1)*apvPageSize+i+1)).join(''));
+                $('#apvCards').html(data.map(buildApprovalCard).join(''));
             }
             renderApvPagination();
-            MobileTableHelper.refresh('approvalBody');
         },
         error: function(xhr) {
-            $('#approvalBody').html(`<tr><td colspan="8" class="text-center text-danger py-4">Lỗi kết nối (${xhr.status})</td></tr>`);
-            MobileTableHelper.refresh('approvalBody');
+            const err = `<div class="ts-empty text-danger">Lỗi kết nối (${xhr.status})</div>`;
+            $('#approvalBody').html(`<tr><td colspan="8">${err}</td></tr>`);
+            $('#apvCards').html(err);
         }
     });
+}
+
+function setChipCount(id, n) {
+    const el = document.getElementById(id); if (!el) return;
+    let c = el.querySelector('.ts-chip-n');
+    if (!c) { c = document.createElement('span'); c.className = 'ts-chip-n'; el.appendChild(c); }
+    c.textContent = n != null ? n : '';
 }
 
 function renderApvPagination() {
     if (!apvTotal) { $('#apvCount').text(''); $('#apvPagination').empty(); return; }
     const s=(apvPage-1)*apvPageSize+1, e=Math.min(apvPage*apvPageSize,apvTotal);
-    $('#apvCount').html(`<span class="text-xs">${s}-${e} / <strong>${apvTotal}</strong> phiếu</span>`);
+    $('#apvCount').html(`<span class="text-xs">${s}-${e} / <strong>${apvTotal}</strong> đơn</span>`);
     const $bar=$('#apvPagination').empty();
-    const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active)loadApproval(p);}).appendTo(li);return li;};
+    const mk=(label,p,disabled,active)=>{const li=$('<li class="page-item">').toggleClass('disabled',!!disabled).toggleClass('active',!!active);$('<a class="page-link">').html(label).on('click',()=>{if(!disabled&&!active){loadApproval(p);document.getElementById('scheduleTab').scrollIntoView({behavior:'smooth'});}}).appendTo(li);return li;};
     $bar.append(mk('&lsaquo;',apvPage-1,apvPage<=1));
     let from=Math.max(1,apvPage-2),to=Math.min(apvTotalPages,apvPage+2);
     for(let p=from;p<=to;p++) $bar.append(mk(p,p,false,p===apvPage));
@@ -890,10 +1166,16 @@ function openApvAction(id, type, fromDate) {
     $('#tsActionId').val(id); $('#tsActionType').val(type);
     $('#tsActionComment').val(''); $('#tsActionError').addClass('d-none').text('');
     const isApprove = type === 'approve';
+    const it = apvItems[id];
+    $('#tsActionWho').html(it
+        ? `<b class="vni-font">${escHtml(it.EMP_NAME||'')}</b> · ${escHtml(it.EMPCD||'')}<br>
+           ${escHtml(LEAVE_LABEL[it.LEAVE_TYPE] || it.LEAVE_TYPE || '')}: ${formatDate(it.FROM_DATE)}${it.TO_DATE && it.TO_DATE !== it.FROM_DATE ? ' → ' + formatDate(it.TO_DATE) : ''}${it.TOTAL_DAYS != null ? ' (' + it.TOTAL_DAYS + ' ngày)' : ''}`
+        : '');
     $('#tsActionHeader').removeClass('bg-success bg-danger text-white').addClass(isApprove ? 'bg-success text-white' : 'bg-danger text-white');
-    $('#tsActionTitle').text(isApprove ? 'Duyệt Đơn Nghỉ Phép' : 'Từ Chối Đơn Nghỉ Phép');
-    $('#tsActionConfirm').removeClass('btn-success btn-danger').addClass(isApprove ? 'btn-success' : 'btn-danger');
-    new bootstrap.Modal('#tsActionModal').show();
+    $('#tsActionTitle').text(isApprove ? 'Duyệt đơn nghỉ phép' : 'Từ chối đơn nghỉ phép');
+    $('#tsActionConfirm').removeClass('btn-success btn-danger').addClass(isApprove ? 'btn-success' : 'btn-danger')
+                         .text(isApprove ? 'Duyệt' : 'Từ chối');
+    bootstrap.Modal.getOrCreateInstance('#tsActionModal').show();
 }
 
 async function submitApprovalAction() {
@@ -901,6 +1183,7 @@ async function submitApprovalAction() {
     const type    = $('#tsActionType').val();
     const comment = $('#tsActionComment').val();
     const url     = type === 'approve' ? APPROVE_URL : REJECT_URL;
+    const label   = type === 'approve' ? 'Duyệt' : 'Từ chối';
     const $btn    = $('#tsActionConfirm').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>...');
     try {
         const res = await $.ajax({ url, type: 'POST', data: { request_id: id, comment } });
@@ -913,10 +1196,10 @@ async function submitApprovalAction() {
             $('#tsActionError').removeClass('d-none').text(res.message || 'Lỗi xử lý');
         }
     } catch { $('#tsActionError').removeClass('d-none').text('Lỗi kết nối'); }
-    finally  { $btn.prop('disabled', false).text('Xác Nhận'); }
+    finally  { $btn.prop('disabled', false).text(label); }
 }
 
-// ─── Tab 4 ───────────────────────────────────────────────────────
+// ─── Lịch tôi đã sắp ─────────────────────────────────────────────
 function onMaEmpInput() {
     clearTimeout(maEmpTimeout);
     maEmpTimeout = setTimeout(() => loadMyAssign(1), 400);
@@ -925,14 +1208,12 @@ function onMaEmpInput() {
 function buildMyAssignRow(item, idx) {
     const lt = LEAVE_LABEL[item.LEAVE_TYPE] || item.LEAVE_TYPE || '-';
     const lc = LEAVE_COLOR[item.LEAVE_TYPE] || 'secondary';
-    let statusHtml;
-    if (item.CONFIRM_STATUS === 'CONFIRMED')
-        statusHtml = `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận thông tin</span>`;
-    else
-        statusHtml = `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận thông tin</span>`;
+    const statusHtml = item.CONFIRM_STATUS === 'CONFIRMED'
+        ? `<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Đã tiếp nhận</span>`
+        : `<span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Chưa tiếp nhận</span>`;
     return `<tr>
         <td class="px-2 text-xs text-secondary">${idx}</td>
-        <td class="px-2 text-sm">${escHtml(item.EMPCD||'')}</td>
+        <td class="px-2 text-sm text-nowrap" data-emp-photo="${escHtml(item.EMPCD||'')}" data-emp-name="${escHtml(item.EMP_NAME||'')}">${escHtml(item.EMPCD||'')}</td>
         <td class="px-2 text-sm vni-font" style="text-transform:uppercase;">${escHtml(item.EMP_NAME||'')}</td>
         <td class="px-2"><span class="badge bg-${lc}">${lt}</span></td>
         <td class="px-2 text-sm text-nowrap">${formatDate(item.FROM_DATE)}</td>
@@ -945,7 +1226,7 @@ function buildMyAssignRow(item, idx) {
 
 function loadMyAssign(page = 1) {
     maPage = page;
-    $('#myAssignBody').html(`<tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-dark" role="status"></div></td></tr>`);
+    $('#myAssignBody').html(`<tr><td colspan="9"><div class="ts-empty"><div class="spinner-border text-primary" role="status"></div></div></td></tr>`);
     MobileTableHelper.refresh('myAssignBody');
     $.ajax({
         url: MY_ASSIGN_URL, type: 'GET',
@@ -956,7 +1237,7 @@ function loadMyAssign(page = 1) {
         },
         success: function(res) {
             if (!res.success) {
-                $('#myAssignBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${res.message||''}</td></tr>`);
+                $('#myAssignBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">Lỗi: ${escHtml(res.message||'')}</td></tr>`);
                 MobileTableHelper.refresh('myAssignBody');
                 return;
             }
@@ -994,24 +1275,28 @@ function renderMaPagination() {
     $bar.append(mk('&rsaquo;',maPage+1,maPage>=maTotalPages));
 }
 
-// ─── Init ────────────────────────────────────────────────────────
-// document.getElementById('tabAssignLi')?.classList.add('d-none');
-// document.getElementById('tabMyAssignLi')?.classList.add('d-none');
-
-document.getElementById('tab-assign-btn')?.addEventListener('shown.bs.tab', loadEmps);
+// ─── Khởi tạo ────────────────────────────────────────────────────
+document.getElementById('tab-assign-btn')?.addEventListener('shown.bs.tab', function () {
+    loadEmps();
+    document.getElementById('tsBar').classList.add('on-tab');
+    updateAssignBar();
+});
+document.getElementById('tab-assign-btn')?.addEventListener('hidden.bs.tab', function () {
+    document.getElementById('tsBar').classList.remove('on-tab');
+});
 document.getElementById('tab-myassign-btn')?.addEventListener('shown.bs.tab', function() {
     if (!maLoaded) { maLoaded = true; loadMyAssign(1); }
 });
 
 function formatDate(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); }
 function formatDateTime(s) { if(!s) return '-'; const d=new Date(s); if(isNaN(d)) return '-'; return formatDate(s)+' '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); }
-function escHtml(str)  { return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escHtml(str)  { return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function loadPendingBadge() {
     if (!CAN_APPROVE) return;
     const range = getMonthRange();
     $.get(PAGE_URL, { page: 1, page_size: 1, status: 'PENDING', date_from: range.from, date_to: range.to }, function(res) {
-        const n = res.success ? (res.total || 0) : 0;
+        const n = res.success ? (res.summary?.PENDING ?? 0) : 0;   // total = mọi trạng thái, xem loadApproval
         const $b = $('#pendingBadge');
         if (n > 0) $b.text(n > 99 ? '99+' : n).removeClass('d-none');
         else $b.addClass('d-none');
@@ -1019,7 +1304,6 @@ function loadPendingBadge() {
 }
 
 $(document).ready(function() {
-    MobileTableHelper.init('approvalBody');
     MobileTableHelper.init('myAssignBody');
     updateMonthLabel();
     loadPendingBadge();

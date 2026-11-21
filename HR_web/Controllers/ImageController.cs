@@ -4,6 +4,7 @@ using HR_web.Models.Account;
 using ImageMagick;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 
@@ -14,6 +15,7 @@ namespace HR_web.Controllers;
 public class ImageController : BaseController
 {
     private readonly AccountService _accountService;
+    private readonly Microsoft.Extensions.Caching.Memory.IMemoryCache _cache;
 
     // ── Network share config (dùng chung toàn app) ──────────────────────────
     internal const string ShareRoot = @"\\192.168.1.5\vserp_picture";
@@ -33,9 +35,10 @@ public class ImageController : BaseController
     private static readonly string[] ImageExts    = { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
     private const long               ImageMaxBytes = 10L * 1024 * 1024; // 10 MB
 
-    public ImageController(AccountService accountService)
+    public ImageController(AccountService accountService, Microsoft.Extensions.Caching.Memory.IMemoryCache cache)
     {
         _accountService = accountService;
+        _cache = cache;
     }
 
     // ── Helper chung: đọc file từ network share và trả về ảnh ───────────────
@@ -73,6 +76,104 @@ public class ImageController : BaseController
         if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
         var fileName = empCd + ".jpg";
         return ServeNetworkImage(Path.Combine(EmployeeFolder, fileName), fileName);
+    }
+
+    // ── Ảnh NV thu nhỏ — cho các trang duyệt (wwwroot/js/emp-photo.js, yêu cầu 2026-11-21) ───────────
+    // Ảnh gốc trên ổ mạng; trang duyệt 50 dòng mà mỗi dòng đọc ổ mạng thì nặng → thu nhỏ còn 2 cỡ:
+    // s<=200 → 160px (ảnh trong dòng/thẻ), còn lại → 640px (xem phóng to). Bắt buộc đăng nhập (khác GetEmployeeImage).
+    //
+    // Ổ mạng 192.168.1.5 SẬP / chậm (người duyệt vẫn phải duyệt được, chỉ là không có ảnh):
+    //   - Mỗi lần đọc chờ tối đa 5 giây (kết nối SMB treo có thể 20-30 giây/ảnh → cả trang treo).
+    //   - Lỗi 1 lần → 60 giây kế tiếp không đụng ổ mạng nữa (không để 50 ảnh cùng treo), trả 404 ngay.
+    //   - Lỗi do ổ mạng chỉ nhớ 1 phút; NV thật sự không có ảnh mới nhớ 20 phút → ổ mạng sống lại là có ảnh lại sớm.
+    //   - Trình duyệt nhận 404 → emp-photo.js hiện hình người xám (giống NV chưa có ảnh), trang vẫn dùng bình thường.
+    // EmpPhoto:FallbackUrl (chỉ đặt ở appsettings.Development.json): máy dev không vào được ổ mạng → lấy ảnh qua
+    // GetEmployeeImage của server thật để test. Production để trống.
+    private static DateTime _photoShareDownUntilUtc = DateTime.MinValue;
+    private static readonly HttpClient _photoHttp = new() { Timeout = TimeSpan.FromSeconds(5) };
+
+    [HttpGet]
+    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Client)]
+    public async Task<IActionResult> GetEmployeeThumb(string empCd, int s = 160)
+    {
+        if (string.IsNullOrWhiteSpace(empCd) || empCd.Length > 20 || !empCd.All(char.IsLetterOrDigit))
+            return BadRequest();
+        int size = s <= 200 ? 160 : 640;
+        string key = "empthumb:" + empCd + ":" + size;
+
+        if (!_cache.TryGetValue(key, out byte[]? bytes) || bytes == null)
+        {
+            bool shareFailed = false;
+            byte[]? raw = null;
+            if (DateTime.UtcNow >= _photoShareDownUntilUtc)
+            {
+                try
+                {
+                    raw = await Task.Run(() =>
+                    {
+                        using (new NetworkShareHelper(ShareRoot, ShareCred))
+                        {
+                            var path = Path.Combine(EmployeeFolder, empCd + ".jpg");
+                            if (System.IO.File.Exists(path)) return System.IO.File.ReadAllBytes(path);
+                            // Không thấy file: NV chưa có ảnh, HAY không vào được thư mục (ổ mạng lỗi / máy dev)?
+                            if (!Directory.Exists(EmployeeFolder)) throw new IOException("Không truy cập được thư mục ảnh NV");
+                            return null;
+                        }
+                    }).WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                catch
+                {
+                    shareFailed = true;
+                    _photoShareDownUntilUtc = DateTime.UtcNow.AddSeconds(60);
+                }
+            }
+            else shareFailed = true;
+
+            if (raw == null && shareFailed)
+                raw = await FetchFallbackPhotoAsync(empCd);
+
+            bytes = raw == null ? Array.Empty<byte>() : (ShrinkJpeg(raw, size) ?? Array.Empty<byte>());
+            _cache.Set(key, bytes,
+                bytes.Length > 0 ? TimeSpan.FromHours(12)
+                : shareFailed    ? TimeSpan.FromMinutes(1)
+                                 : TimeSpan.FromMinutes(20));
+        }
+
+        if (bytes.Length == 0)
+        {
+            Response.Headers.CacheControl = "private, max-age=60";   // không có ảnh / ổ mạng lỗi: đừng nhớ lâu
+            return NotFound();
+        }
+        return File(bytes, "image/jpeg");
+    }
+
+    /// <summary>Thu nhỏ về chiều ngang <paramref name="size"/> (không phóng ảnh nhỏ lên). null nếu file hỏng.</summary>
+    private static byte[]? ShrinkJpeg(byte[] raw, int size)
+    {
+        try
+        {
+            using var img = SixLabors.ImageSharp.Image.Load(raw);
+            img.Mutate(x => x.AutoOrient());
+            if (img.Width > size) img.Mutate(x => x.Resize(size, 0));
+            using var ms = new MemoryStream();
+            img.SaveAsJpeg(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = 80 });
+            return ms.ToArray();
+        }
+        catch { return null; }
+    }
+
+    private async Task<byte[]?> FetchFallbackPhotoAsync(string empCd)
+    {
+        var baseUrl = HttpContext.RequestServices.GetService<IConfiguration>()?["EmpPhoto:FallbackUrl"];
+        if (string.IsNullOrWhiteSpace(baseUrl)) return null;
+        try
+        {
+            using var res = await _photoHttp.GetAsync(baseUrl + (baseUrl.Contains('?') ? "&" : "?") + "empCd=" + Uri.EscapeDataString(empCd));
+            if (!res.IsSuccessStatusCode) return null;
+            var b = await res.Content.ReadAsByteArrayAsync();
+            return b.Length > 0 ? b : null;
+        }
+        catch { return null; }
     }
 
     // ── Chữ ký ──────────────────────────────────────────────────────────────

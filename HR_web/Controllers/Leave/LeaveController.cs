@@ -380,6 +380,28 @@ public class LeaveController : BaseController
     }
 
     // ─────────────────────────────────────────────
+    // GET: /Leave/GetAssignEmps (AJAX) — Sắp lịch nghỉ: 1 trang NV trong phạm vi (phân trang SQL); all=true: mọi NV khớp lọc
+    // ─────────────────────────────────────────────
+    [HttpGet]
+    public async Task<IActionResult> GetAssignEmps(string? search = null, string? dept = null, string? line = null,
+        string? work = null, int page = 1, int page_size = 30, bool all = false)
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, message = "Chưa đăng nhập" });
+        return Content(await _leaveService.GetAssignEmpsRawAsync(CurrentUser.EmpCd, search, dept, line, work, page, page_size, all),
+                       "application/json");
+    }
+
+    // GET: /Leave/GetAssignEmpFilters (AJAX) — bộ phận / line / nhóm trong phạm vi cho 3 ô lọc
+    [HttpGet]
+    public async Task<IActionResult> GetAssignEmpFilters()
+    {
+        if (string.IsNullOrEmpty(CurrentUser?.EmpCd))
+            return Json(new { success = false, data = Array.Empty<object>() });
+        return Content(await _leaveService.GetAssignEmpFiltersRawAsync(CurrentUser.EmpCd), "application/json");
+    }
+
+    // ─────────────────────────────────────────────
     // GET: /Leave/GetAnnualLeaveBalance (AJAX)
     // ─────────────────────────────────────────────
     [HttpGet]

@@ -128,7 +128,8 @@ public class AccountController : ControllerBase
                 DeptRoleName = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, du.EmpCd),
                 IsActive = du.IsActive, LastedLogin = du.LastedLogin,
                 SIGNATUREBLOB = du.SignatureBlob ?? "N",
-                Lang = duLang
+                Lang = duLang,
+                ShowEmpPhoto = await EmpPhotoPrefHelper.GetAsync(_oracleService, du.EmpCd)
             }});
         }
 
@@ -218,6 +219,9 @@ public class AccountController : ControllerBase
             if (LangPrefHelper.IsSupported(saved)) result.Lang = saved!;
             if (result.Lang == LangPrefHelper.Vi) result.Lang = LangPrefHelper.En;  // Expat không dùng tiếng Việt
         }
+
+        // Tuỳ chọn hiện ảnh NV ở trang duyệt — đọc 1 lần ở đây, nằm trong cookie phiên (null = theo mặc định role).
+        result.ShowEmpPhoto = await EmpPhotoPrefHelper.GetAsync(_oracleService, result.EmpCd);
 
         string updateSql = @"UPDATE HRMS.HR_USERS SET LASTED_LOGIN = SYSDATE, LAST_DEVICE_TYPE = :DEVICE, LAST_DEVICE_DT = SYSDATE WHERE EMPCD = :EMPCD";
         await _oracleService.ExecuteNonQueryAsync(updateSql,
@@ -310,6 +314,28 @@ public class AccountController : ControllerBase
         return Ok(ok
             ? new { success = true,  message = "Đã lưu ngôn ngữ" }
             : new { success = false, message = "Không lưu được (DB chưa chạy alter_hr_users_lang_pref.sql hoặc không có NV này)" });
+    }
+
+    // GET  /apiHR/Account/emp-photo-pref?empcd=  -> { success, available, show (true/false/null) }
+    // POST /apiHR/Account/set-emp-photo-pref        { EmpCd, Show }
+    // "Hiện ảnh nhân viên ở các trang duyệt" — xem Helpers/EmpPhotoPrefHelper.cs.
+    [HttpGet("emp-photo-pref")]
+    public async Task<IActionResult> GetEmpPhotoPref(string empcd)
+    {
+        var available = await EmpPhotoPrefHelper.IsAvailableAsync(_oracleService);
+        var show = available ? await EmpPhotoPrefHelper.GetAsync(_oracleService, empcd) : null;
+        return Ok(new { success = true, available, show });
+    }
+
+    [HttpPost("set-emp-photo-pref")]
+    public async Task<IActionResult> SetEmpPhotoPref([FromBody] SetEmpPhotoPrefRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.EmpCd))
+            return Ok(new { success = false, message = "Thiếu mã nhân viên" });
+        bool ok = await EmpPhotoPrefHelper.SetAsync(_oracleService, req.EmpCd, req.Show);
+        return Ok(ok
+            ? new { success = true,  message = "Đã lưu" }
+            : new { success = false, message = "Không lưu được (DB chưa có cột HR_USERS.SHOW_EMP_PHOTO hoặc không có NV này)" });
     }
 
     [HttpPost("reset-password")]

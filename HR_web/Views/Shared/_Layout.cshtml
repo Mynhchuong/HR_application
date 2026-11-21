@@ -15,7 +15,9 @@
     }
 }
 <!DOCTYPE html>
-<html lang="vi">
+@* data-ep-*: ảnh NV ở trang duyệt (wwwroot/js/emp-photo.js) — bật/tắt theo Cài đặt của người xem *@
+<html lang="vi" data-ep-on="@(layoutUser.EmpPhotoOn() ? "1" : "0")" data-ep-thumb="@Url.Action("GetEmployeeThumb", "Image")"
+      data-ep-none="Không có ảnh" data-ep-close="Đóng">
 <head>
     <meta charset="utf-8" />
     <!-- maximum-scale=1 + user-scalable=no — chặn hẳn auto-zoom của iOS Safari/WKWebView khi focus
@@ -47,6 +49,7 @@
     <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
     <!-- Mobile Table Helper CSS -->
     <link href="~/css/mobile-table.css" rel="stylesheet" asp-append-version="true" />
+    <link href="~/css/emp-photo.css" rel="stylesheet" asp-append-version="true" />
     <!-- List Page Helper CSS (stats + filter bar + header, mobile) -->
     <link href="~/css/list-page-helper.css" rel="stylesheet" asp-append-version="true" />
     <!-- Time Picker Helper CSS (dropdown chọn giờ kiểu Gate Pass, dùng chung nhiều trang) -->
@@ -540,6 +543,7 @@
     <!-- Select2 Helper -->
     <script src="~/assets/js/select2-helper.js" asp-append-version="true"></script>
     <!-- Mobile Table Helper -->
+    <script src="~/js/emp-photo.js" asp-append-version="true"></script>
     <script src="~/js/mobile-table.js" asp-append-version="true"></script>
     <!-- Time Picker Helper (dropdown chọn giờ kiểu Gate Pass, dùng chung nhiều trang) -->
     <script src="~/js/time-picker-helper.js" asp-append-version="true"></script>

@@ -978,6 +978,11 @@ public static class ExpatText
         ["Open the profile page"] = "프로필 화면 열기",
         ["Saved"] = "저장되었습니다.",
         ["Could not save, please try again."] = "저장하지 못했습니다. 다시 시도해 주세요.",
+        ["Approval screens"] = "승인 화면",
+        ["Show employee photos"] = "직원 사진 표시",
+        ["Shows each employee's ID photo next to their code on leave, gate pass, overtime and attendance screens. Tap a photo to enlarge it."]
+            = "휴가·게이트패스·잔업·근태 승인 화면에서 사번 옆에 직원 사진을 표시합니다. 사진을 누르면 크게 볼 수 있습니다.",
+        ["No photo"] = "사진 없음",
         // ── Thông báo hệ thống / API (dùng qua ExpatMsg, xem ViToEn bên dưới) ──
         ["You are not allowed to approve gate passes."] = "게이트패스를 승인할 권한이 없습니다.",
         ["You are not allowed to approve leave requests."] = "휴가 신청을 승인할 권한이 없습니다.",

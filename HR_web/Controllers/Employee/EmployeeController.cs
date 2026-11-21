@@ -69,7 +69,7 @@ public class EmployeeController : BaseController
     // (yêu cầu 2026-10-16: "hr cũng cần 1 page lấy all danh sách công nhân").
     // GET /Employee/AllEmployees
     // ─────────────────────────────────────────────────────────────────────────
-    private bool IsHrOrAdmin => CurrentUser.HasAnyRole("HR", "Admin");
+    private bool IsHrOrAdmin => CurrentUser.HasAnyRole("HR", "Admin", "CSR");   // CSR xem được Toàn bộ nhân viên (2026-11-21)
 
     public IActionResult AllEmployees()
     {

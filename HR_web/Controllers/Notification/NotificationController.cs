@@ -53,9 +53,13 @@ public class NotificationController : BaseController
         // Thông báo và tự bung đúng thông báo đó (?open=).
         var path = NotificationLinkHelper.ResolvePath(action, target, CurrentUser?.RoleName == "Expat");
         if (path == null)
-            return Redirect(Url.Content("~/Notification/Index") + (noti.HasValue ? "?open=" + noti.Value : ""));
+            return Redirect(Url.Content("~/Notification/Index") + (noti.HasValue ? "?open=" + IdStr(noti.Value) : ""));
         return Redirect(Url.Content(path));
     }
+
+    // Mã thông báo dạng số nguyên, KHÔNG theo văn hoá vi-VN: Oracle có lúc trả ID kèm phần lẻ (668783.0)
+    // → in ra "668783,0" làm /Notification/Go không đọc được noti (bấm không đánh dấu đã đọc).
+    private static string IdStr(decimal id) => decimal.Truncate(id).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
 
     // GET /Notification/GetPage  (AJAX)
     [HttpGet]
@@ -78,7 +82,7 @@ public class NotificationController : BaseController
             if (NotificationLinkHelper.ResolvePath(n.LINK_ACTION, n.TARGET_VAL, isExpat) != null)
                 // Ghép tay: route value tên "action" sẽ bị Url.Action hiểu là TÊN ACTION
                 n.LINK_URL = Url.Content("~/Notification/Go") + "?action=" + Uri.EscapeDataString(n.LINK_ACTION ?? "")
-                           + "&target=" + Uri.EscapeDataString(n.TARGET_VAL ?? "") + "&noti=" + n.ID;
+                           + "&target=" + Uri.EscapeDataString(n.TARGET_VAL ?? "") + "&noti=" + IdStr(n.ID);
         }
         return Json(new { success = true, data = items, unread });
     }

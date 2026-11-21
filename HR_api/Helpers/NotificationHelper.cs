@@ -293,7 +293,7 @@ public class NotificationHelper
             // KHÔNG có "target" ở đường gửi nhiều người: lần gửi này ứng với NHIỀU đích
             // (SendMultiNotificationRequest.TARGETS là 1 danh sách, không có 1 TARGET_VAL duy nhất).
             // Các thông báo cần id cụ thể (bản tin, phiếu khảo sát) đều đi đường gửi đơn lẻ bên dưới.
-            data["noti_id"] = notiId.ToString();
+            data["noti_id"] = decimal.Truncate(notiId).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
 
             foreach (var batch in tokens.Chunk(500))
             {
@@ -357,7 +357,7 @@ public class NotificationHelper
             {
                 data = new Dictionary<string, string> { { "link_action", model.LINK_ACTION } };
                 if (!string.IsNullOrEmpty(model.TARGET_VAL)) data["target"] = model.TARGET_VAL!;
-                if (notiId.HasValue && notiId.Value > 0) data["noti_id"] = notiId.Value.ToString();
+                if (notiId.HasValue && notiId.Value > 0) data["noti_id"] = decimal.Truncate(notiId.Value).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
             }
 
             foreach (var batch in tokens.Chunk(500))

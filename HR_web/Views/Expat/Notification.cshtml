@@ -314,7 +314,16 @@ fetch(`@Url.Action("GetPage")?page=1&page_size=${PAGE_SIZE}`)
         const openId = new URLSearchParams(location.search).get('open');
         if (openId) {
             const target = allItems.find(n => String(n.ID) === String(openId));
-            if (target) onNotiClick(target);
+            if (target) {
+                // Thông báo không có trang đích (app mở tới đây): cuộn tới + tô sáng đúng thông báo vừa bấm
+                const el = document.querySelector(`.noti-item[data-id="${target.ID}"]`);
+                if (el && !target.LINK_URL) {
+                    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    el.style.transition = 'background .4s'; el.style.background = '#fef9c3';
+                    setTimeout(() => { el.style.background = ''; }, 2500);
+                }
+                onNotiClick(target);
+            }
             else markReadById(openId);
         }
     });

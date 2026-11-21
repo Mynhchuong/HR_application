@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Khối đỏ chữ S tĩnh — y hệt khung đầu của màn chào (MainActivity.startSplashAnimation) để nền cửa sổ
+     hiện logo ngay lúc bấm app, không còn trắng trong lúc WebView khởi tạo (máy yếu mất 2-3 giây). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="1024">
+    <path android:pathData="M230,0 H794 A230,230 0 0 1 1024,230 V794 A230,230 0 0 1 794,1024 H230 A230,230 0 0 1 0,794 V230 A230,230 0 0 1 230,0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="307" android:centerY="287" android:gradientRadius="973">
+                <item android:color="#FFC8173A" android:offset="0" />
+                <item android:color="#FF9B0A24" android:offset="0.5" />
+                <item android:color="#FF6A0617" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M690,238 C600,200 430,205 410,315 C395,400 470,440 540,474 C625,515 668,560 650,640 C628,740 425,772 300,690"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="96"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

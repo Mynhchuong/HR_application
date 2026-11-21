@@ -5,5 +5,8 @@
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
     </style>
 
-    <style name="Theme.MySamho" parent="Base.Theme.MySamho" />
+    <style name="Theme.MySamho" parent="Base.Theme.MySamho">
+        <!-- Logo hiện ngay khi bấm app (trước khi WebView khởi tạo xong) -->
+        <item name="android:windowBackground">@drawable/splash_window_bg</item>
+    </style>
 </resources>

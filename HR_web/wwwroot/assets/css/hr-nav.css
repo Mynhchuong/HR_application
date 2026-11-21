@@ -49,7 +49,7 @@ body.hr-menu-hidden .main-content {
     justify-content: center;
     background: transparent;
     color: var(--header-subtle);
-    transition: all 0.2s ease;
+    transition: background-color .2s ease, color .2s ease, transform .2s ease;
 }
 
 .header-toggle-btn:hover,
@@ -158,7 +158,7 @@ body.hr-menu-hidden .main-content {
     justify-content: center;
     text-decoration: none !important;
     color: #94a3b8;
-    transition: all 0.2s ease;
+    transition: color .2s ease;
     flex: 1 1 0;
     background: none;
     border: none;
@@ -177,7 +177,7 @@ body.hr-menu-hidden .main-content {
     align-items: center;
     justify-content: center;
     border-radius: 12px;
-    transition: all 0.2s ease;
+    transition: background-color .2s ease, transform .2s ease;
 }
 
 .nav-item-mobile.active .icon-wrap {
@@ -332,7 +332,7 @@ body.hr-menu-hidden .main-content {
     text-decoration: none;
     color: #64748b !important;
     font-weight: 500;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color .25s cubic-bezier(0.4, 0, 0.2, 1), color .25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow .25s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
     min-height: 44px; /* vùng chạm tối thiểu cho mobile */
 }
@@ -424,7 +424,7 @@ body.hr-menu-hidden .main-content {
     border-radius: 8px;
     color: #cbd5e1;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: color .15s ease, background-color .15s ease;
 }
 .menu-pin-btn:hover {
     background: rgba(148, 163, 184, 0.15);
@@ -873,3 +873,51 @@ body.hr-ag-open { overflow: hidden; }
 .hr-pal-row.sel .hr-pal-go { opacity: 1; color: #6366f1; }
 .hr-pal-none { text-align: center; color: #94a3b8; padding: 1.6rem; font-weight: 600; }
 .hr-pal-foot { font-size: .72rem; color: #94a3b8; padding: .5rem 1rem; border-top: 1px solid #f1f5f9; background: #fafafa; }
+
+
+/* ═══════════ Chuyển động mượt trên iOS/Android WebView (2026-11-20 — khách chê motion còn thô) ═══════════ */
+/* 1. Thanh menu dưới: BỎ làm mờ nền (blur 15px trên thanh cố định = điện thoại phải làm mờ lại mỗi khung hình
+      khi cuộn → giật, nhất là Android). Dùng nền trắng gần đặc + viền mảnh, nhìn gần như cũ. */
+.mobile-bottom-nav {
+    background: rgba(255,255,255,.98) !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    box-shadow: 0 -1px 0 rgba(15,23,42,.06), 0 -6px 16px rgba(15,23,42,.04);
+    transform: translateZ(0);            /* tách lớp riêng, cuộn trang không vẽ lại thanh */
+}
+/* 2. Lớp loading + nền tối menu: không làm mờ nền (nặng khi bật lên) */
+#pageLoadingOverlay { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: rgba(255,255,255,.93) !important; }
+.hr-backdrop { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* 3. Phản hồi khi chạm: không có ô xám nháy của trình duyệt, nút "nhún" nhẹ → cảm giác như app native */
+html { -webkit-tap-highlight-color: transparent; }
+a, button, .btn, [role="button"], .nav-item-mobile { touch-action: manipulation; }
+.nav-item-mobile .icon-wrap { will-change: transform; }
+.nav-item-mobile:active .icon-wrap { transform: scale(.88); }
+.btn:active, .hr-tile:active, .tp-food:active { transition-duration: .08s; }
+
+/* 4. Chuyển trang mượt: trình duyệt hỗ trợ (iOS 18.2+, Android WebView 126+) thì mờ dần sang trang mới
+      thay vì chớp trắng; máy cũ thì nội dung trang trượt nhẹ lên khi vào (rất ngắn, không làm chậm). */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: vtOut .16s ease-in both; }
+::view-transition-new(root) { animation: vtIn .22s cubic-bezier(.32,.72,0,1) both; }
+@keyframes vtOut { to { opacity: 0; } }
+@keyframes vtIn  { from { opacity: 0; transform: translateY(6px); } }
+/* Thanh đầu trang + menu dưới ĐỨNG YÊN khi chuyển trang (chỉ phần nội dung chuyển cảnh) */
+.main-header       { view-transition-name: hr-header; }
+.mobile-bottom-nav { view-transition-name: hr-bottomnav; }
+::view-transition-group(hr-header), ::view-transition-group(hr-bottomnav),
+::view-transition-old(hr-header), ::view-transition-new(hr-header),
+::view-transition-old(hr-bottomnav), ::view-transition-new(hr-bottomnav) { animation: none; }
+/* Máy cũ: chỉ mờ dần (KHÔNG dùng transform — transform trên vùng nội dung làm lệch các thanh position:fixed
+   bên trong như ô bình luận/ô chat trong lúc chạy hiệu ứng) */
+@supports not (view-transition-name: none) {
+    .main-body { animation: pageIn .2s ease-out both; }
+}
+@keyframes pageIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 5. Cuộn: không kéo "dây thun" cả trang làm thanh trên/dưới lắc (iOS), cuộn quán tính mượt */
+html, body { overscroll-behavior-y: none; }
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root), ::view-transition-new(root), .main-body { animation: none !important; }
+    .nav-item-mobile:active .icon-wrap { transform: none; }
+}

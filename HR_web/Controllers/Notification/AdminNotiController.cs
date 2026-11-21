@@ -16,7 +16,7 @@ public class AdminNotiController : BaseController
     }
 
     // Admin + HR (role chính hoặc role dept HR) — yêu cầu 2026-10-28: HR cũng gửi/quản lý thông báo.
-    private bool IsAdmin() => CurrentUser.HasAnyRole("Admin", "HR");
+    private bool IsAdmin() => CurrentUser.HasAnyRole("Admin", "HR", "CSR");   // CSR dùng chung trang gửi thông báo (2026-11-21)
 
     private IActionResult Forbid403() =>
         Json(new { success = false, message = "Bạn không có quyền sử dụng chức năng này" });

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HR_web.Controllers.NotiTemplate;
 
-[Authorize(Roles = "Admin,HR")]   // mở cho HR cùng dùng chức năng quản trị (yêu cầu 2026-11-16)
+[Authorize(Roles = "Admin,HR,CSR")]   // mở cho HR (2026-11-16) + CSR (2026-11-21) cùng dùng chức năng quản trị
 public class NotiTemplateController : BaseController
 {
     private readonly NotiTemplateService _svc;

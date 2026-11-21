@@ -238,7 +238,7 @@ class ViewController: UIViewController {
         overlay.alpha = 1
         card.alpha = 0
 
-        let side: CGFloat = 104
+        let side: CGFloat = ViewController.splashIconSide
         let icon = UIView(frame: CGRect(x: target.midX - side / 2, y: target.midY - side / 2,
                                         width: side, height: side))
         icon.backgroundColor = ViewController.logoCrimson
@@ -254,13 +254,7 @@ class ViewController: UIViewController {
         icon.addSubview(sMark)
         overlay.addSubview(icon)
 
-        icon.transform = CGAffineTransform(scaleX: 0.72, y: 0.72)
-        icon.alpha = 0
-        UIView.animate(withDuration: 0.3, delay: 0.05,
-                       usingSpringWithDamping: 0.75, initialSpringVelocity: 0.3) {
-            icon.transform = .identity
-            icon.alpha = 1
-        }
+        // Hiện SẴN đúng như icon hệ điều hành vừa hiện (không ẩn rồi bật lại — đó là nhịp "giật" đầu tiên)
 
         // Giãn thành thẻ. Chữ S KHÔNG biến mất đột ngột: nó co nhỏ về giữa thẻ và đổi từ trắng
         // sang đỏ ngay trong lúc nền đỏ nhạt dần thành trắng — nên suốt cả quãng này luôn có đúng
@@ -298,10 +292,11 @@ class ViewController: UIViewController {
             overlayView?.removeFromSuperview(); overlayView = nil; return
         }
 
-        // Phải khớp với kích thước vòng bên showSplash, nếu lệch là thấy giật một nhịp.
-        let rw: CGFloat = 172, rh = rw * ViewController.ringRatio
-        let target = CGRect(x: (view.bounds.width - rw) / 2,
-                            y: view.bounds.height / 2 - rh / 2, width: rw, height: rh)
+        // Co về ĐÚNG khối icon đỏ của màn chào (showSplash) — cùng chỗ, cùng cỡ, cùng màu, nên bảng
+        // "xếp lại thành icon" rồi màn chào chạy tiếp liền mạch (thiết kế mở app mới 2026-11-20).
+        let side = ViewController.splashIconSide
+        let target = CGRect(x: (view.bounds.width - side) / 2,
+                            y: view.bounds.height / 2 - ViewController.splashIconLift - side / 2, width: side, height: side)
 
         // Thẻ đang được Auto Layout giữ chỗ. Gán thẳng .frame mà không gỡ ràng buộc thì vòng
         // layout kế tiếp kéo nó về chỗ cũ -> thẻ phình to một nhịp rồi mới co, nhìn rất giật.
@@ -317,8 +312,8 @@ class ViewController: UIViewController {
         }
         UIView.animate(withDuration: 0.44, delay: 0.04, options: [.curveEaseInOut], animations: {
             card.frame = target
-            card.layer.cornerRadius = rh / 2
-            card.backgroundColor = UIColor(white: 0.1, alpha: 1)   // đen, nối màu với vòng
+            card.layer.cornerRadius = side * 0.225
+            card.backgroundColor = ViewController.logoCrimson       // đỏ, nối màu với icon màn chào
             overlay.backgroundColor = .white                        // lớp mờ xám -> nền trắng
         }, completion: nil)
 
@@ -394,6 +389,11 @@ class ViewController: UIViewController {
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
+        // Nền WebView = nền xám nhạt của trang (#f5f5f5): chuyển trang không còn chớp trắng (2026-11-20)
+        let pageBg = UIColor(red: 245/255, green: 245/255, blue: 245/255, alpha: 1)
+        webView.isOpaque = false
+        webView.backgroundColor = pageBg
+        webView.scrollView.backgroundColor = pageBg
         // Giữ lâu link không mở bản xem trước — bản xem trước không có phiên đăng nhập nên hiện
         // trang Login kèm popup điền mật khẩu của iOS (báo lỗi 2026-11-18).
         webView.allowsLinkPreview = false
@@ -583,8 +583,28 @@ class ViewController: UIViewController {
     private static let sInRing = CGRect(x: 0.2275, y: 0.1916, width: 0.5540, height: 0.5973)
     private static let ringRatio: CGFloat = 2724.0 / 3231.0      // vòng hơi dẹt, không phải tròn đều
 
-    /// Bước 2: bảng thông báo xếp lại thành VÒNG (đen), rồi chữ S hiện ra tô ĐỎ — thành logo công
-    /// ty. Cuối cùng cả cụm thu nhỏ bay lên đúng chỗ logo trang Đăng nhập.
+    // ── Màn chào mở app (mẫu duyệt 2026-11-20, khớp loading web) ──────────────────────────
+    // Khối đỏ chữ S (icon app) đứng ngay giữa → chữ S tự viết lại → logo "thở" + ánh đỏ toả → tên
+    // My SAMHO trượt lên → thoát: icon phóng nhẹ + mờ, trang app hiện ra từ phía sau (mờ dần + 97%→100%).
+    // Thay chuỗi cũ icon→đĩa đen→vòng→vòng đỏ (6 bước, 2 giây, bay logo tới chỗ logo trang Đăng nhập —
+    // người đã đăng nhập vào thẳng Trang chủ nên logo bay tới chỗ trống).
+    private static let splashIconSide: CGFloat = 108
+    private static let splashIconLift: CGFloat = 24     // icon nằm hơi cao hơn giữa để chừa chỗ cho tên
+    private static let easeOutSoft = CAMediaTimingFunction(controlPoints: 0.32, 0.72, 0, 1)
+
+    /// Đường chữ S trong hệ toạ độ 1024×1024 (giống hệt SVG của loading web).
+    private static func splashSPath(side: CGFloat) -> UIBezierPath {
+        let k = side / 1024
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * k, y: y * k) }
+        let path = UIBezierPath()
+        path.move(to: p(690, 238))
+        path.addCurve(to: p(410, 315), controlPoint1: p(600, 200), controlPoint2: p(430, 205))
+        path.addCurve(to: p(540, 474), controlPoint1: p(395, 400), controlPoint2: p(470, 440))
+        path.addCurve(to: p(650, 640), controlPoint1: p(625, 515), controlPoint2: p(668, 560))
+        path.addCurve(to: p(300, 690), controlPoint1: p(628, 740), controlPoint2: p(425, 772))
+        return path
+    }
+
     private func showSplash() {
         // startWebView() cũng gọi hàm này — mở app bình thường sẽ gọi 2 lần. Lần sau bỏ qua để
         // splash chạy LIỀN MẠCH từ lúc mở tới lúc trang tải xong, không dựng chồng 2 lớp.
@@ -594,86 +614,99 @@ class ViewController: UIViewController {
         splash.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         splash.backgroundColor = .white
 
-        let w = view.bounds.width, h = view.bounds.height
-        let rw: CGFloat = 172, rh = rw * ViewController.ringRatio
-        let group = UIView(frame: CGRect(x: (w - rw) / 2, y: h / 2 - rh * 0.9,
-                                         width: rw, height: rh + 74))
-        splash.addSubview(group)
+        let side = ViewController.splashIconSide
+        let cx = view.bounds.width / 2, cy = view.bounds.height / 2 - ViewController.splashIconLift
 
-        // ── Vòng: 2 bản chồng nhau, đen và đỏ ───────────────────────────────
-        // tintColor KHÔNG chạy được hoạt ảnh, nên muốn "đen chuyển sang đỏ" mượt thì phải xếp 2
-        // bản màu khác nhau rồi mờ chồng. Đổi tintColor thẳng sẽ nhảy màu một phát, rất thô.
-        let ringRect = CGRect(x: 0, y: 0, width: rw, height: rh)
-        let ringDark = UIImageView(image: UIImage(named: "LogoRing"))
-        ringDark.frame = ringRect
-        ringDark.tintColor = UIColor(white: 0.1, alpha: 1)
-        ringDark.alpha = 0
-        group.addSubview(ringDark)
+        // Ánh đỏ toả phía sau icon
+        let glow = CAGradientLayer()
+        glow.type = .radial
+        glow.colors = [UIColor(red: 0.78, green: 0.09, blue: 0.23, alpha: 0.30).cgColor, UIColor(red: 0.78, green: 0.09, blue: 0.23, alpha: 0).cgColor]
+        glow.startPoint = CGPoint(x: 0.5, y: 0.5); glow.endPoint = CGPoint(x: 1, y: 1)
+        glow.frame = CGRect(x: cx - side, y: cy - side, width: side * 2, height: side * 2)
+        glow.opacity = 0
+        splash.layer.addSublayer(glow)
 
-        let ringRed = UIImageView(image: UIImage(named: "LogoRing"))
-        ringRed.frame = ringRect
-        ringRed.tintColor = ViewController.logoCrimson
-        ringRed.alpha = 0
-        group.addSubview(ringRed)
+        // Khối đỏ bo góc (giống icon app) + chữ S trắng vẽ bằng nét để "tự viết lại"
+        let icon = UIView(frame: CGRect(x: cx - side / 2, y: cy - side / 2, width: side, height: side))
+        icon.layer.cornerRadius = side * 0.225
+        icon.layer.cornerCurve = .continuous
+        icon.clipsToBounds = true
+        let bg = CAGradientLayer()
+        bg.type = .radial
+        bg.colors = [UIColor(red: 0.78, green: 0.09, blue: 0.23, alpha: 1).cgColor,
+                     UIColor(red: 0.61, green: 0.04, blue: 0.14, alpha: 1).cgColor,
+                     UIColor(red: 0.42, green: 0.02, blue: 0.09, alpha: 1).cgColor]
+        bg.locations = [0, 0.55, 1]
+        bg.startPoint = CGPoint(x: 0.3, y: 0.28); bg.endPoint = CGPoint(x: 1.15, y: 1.15)
+        bg.frame = icon.bounds
+        icon.layer.addSublayer(bg)
+        let sLayer = CAShapeLayer()
+        sLayer.path = ViewController.splashSPath(side: side).cgPath
+        sLayer.fillColor = UIColor.clear.cgColor
+        sLayer.strokeColor = UIColor.white.cgColor
+        sLayer.lineWidth = 96 * side / 1024
+        sLayer.lineCap = .round; sLayer.lineJoin = .round
+        icon.layer.addSublayer(sLayer)
+        splash.addSubview(icon)
 
-        // ── Chữ S, đặt đúng chỗ trong vòng theo tỉ lệ đo từ logo gốc ────────
-        let r = ViewController.sInRing
-        let sView = UIImageView(image: UIImage(named: "LogoS"))
-        sView.frame = CGRect(x: r.minX * rw, y: r.minY * rh,
-                             width: r.width * rw, height: r.height * rh)
-        sView.tintColor = ViewController.logoCrimson
-        sView.alpha = 0
-        sView.transform = CGAffineTransform(scaleX: 0.55, y: 0.55)
-        group.addSubview(sView)
-
-        // ── "My SAMHO" — My đỏ, SAMHO xanh đen, đúng như trang Đăng nhập ────
-        let name = UILabel(frame: CGRect(x: -40, y: rh + 18, width: rw + 80, height: 40))
-        let t = NSMutableAttributedString(
-            string: "My ",
-            attributes: [.foregroundColor: ViewController.brandRed,
-                         .font: UIFont.systemFont(ofSize: 29, weight: .bold)])
-        t.append(NSAttributedString(
-            string: "SAMHO",
-            attributes: [.foregroundColor: ViewController.brandNavy,
-                         .font: UIFont.systemFont(ofSize: 29, weight: .heavy)]))
+        // "My SAMHO" + "HR PORTAL"
+        let name = UILabel(frame: CGRect(x: 0, y: cy + side / 2 + 18, width: view.bounds.width, height: 32))
+        name.autoresizingMask = [.flexibleWidth]
+        let t = NSMutableAttributedString(string: "My ", attributes: [.foregroundColor: ViewController.brandRed, .font: UIFont.systemFont(ofSize: 24, weight: .bold)])
+        t.append(NSAttributedString(string: "SAMHO", attributes: [.foregroundColor: ViewController.brandNavy, .font: UIFont.systemFont(ofSize: 24, weight: .heavy)]))
         name.attributedText = t
         name.textAlignment = .center
         name.alpha = 0
         name.transform = CGAffineTransform(translationX: 0, y: 10)
-        group.addSubview(name)
+        splash.addSubview(name)
+        let sub = UILabel(frame: CGRect(x: 0, y: name.frame.maxY + 2, width: view.bounds.width, height: 16))
+        sub.autoresizingMask = [.flexibleWidth]
+        sub.attributedText = NSAttributedString(string: "HR PORTAL", attributes: [.foregroundColor: UIColor(red: 0.58, green: 0.64, blue: 0.72, alpha: 1), .font: UIFont.systemFont(ofSize: 11, weight: .bold), .kern: 2.0])
+        sub.textAlignment = .center
+        sub.alpha = 0
+        splash.addSubview(sub)
 
-        // Đặt DƯỚI bảng thông báo đang xếp lại, để thấy bảng co thành vòng rồi mới lộ màn hình này.
-        if let ov = overlayView {
-            view.insertSubview(splash, belowSubview: ov)
-        } else {
-            view.addSubview(splash)
-        }
+        // Đặt DƯỚI bảng thông báo đang co lại — bảng co về đúng khối icon này rồi mờ đi.
+        if let ov = overlayView { view.insertSubview(splash, belowSubview: ov) } else { view.addSubview(splash) }
         splashView = splash
-        splashGroup = group
+        splashGroup = icon
         didDismissSplash = false
+        // Có bảng thông báo đang co lại → đợi nó co xong mới chạy (icon đã nằm sẵn đúng chỗ bên dưới)
+        let start: CFTimeInterval = overlayView != nil ? 0.5 : 0
 
-        // ── Chồng lấn nhau cho liền mạch ────────────────────────────────────
-        // 0.38s: bảng vừa co xong thành đĩa đen -> vòng đen hiện lên thay chỗ (vẫn đang là màu đen,
-        //        nên mắt không thấy đứt).
-        UIView.animate(withDuration: 0.3, delay: 0.46, options: [.curveEaseInOut]) {
-            ringDark.alpha = 1
-        }
-        // 0.62s: chữ S nhô ra, vòng chuyển dần sang đỏ -> thành logo công ty.
-        UIView.animate(withDuration: 0.45, delay: 0.72,
-                       usingSpringWithDamping: 0.74, initialSpringVelocity: 0.4) {
-            sView.alpha = 1
-            sView.transform = .identity
-        }
-        UIView.animate(withDuration: 0.5, delay: 0.72, options: [.curveEaseInOut]) {
-            ringRed.alpha = 1
-        }
-        // 1.1s: tên hiện khi logo đã thành hình.
-        UIView.animate(withDuration: 0.36, delay: 1.1, options: [.curveEaseOut]) {
-            name.alpha = 1
-            name.transform = .identity
-        }
+        // 1. Chữ S xoá rồi tự viết lại (0.1s → 0.72s)
+        let t0 = CACurrentMediaTime() + start + 0.1
+        let sStart = CAKeyframeAnimation(keyPath: "strokeStart")
+        sStart.values = [0, 1, 0, 0]; sStart.keyTimes = [0, 0.35, 0.351, 1]
+        let sEnd = CAKeyframeAnimation(keyPath: "strokeEnd")
+        sEnd.values = [1, 1, 0, 1]; sEnd.keyTimes = [0, 0.35, 0.351, 1]
+        sEnd.timingFunctions = [CAMediaTimingFunction(name: .easeIn), CAMediaTimingFunction(name: .linear),
+                                CAMediaTimingFunction(controlPoints: 0.65, 0, 0.35, 1)]
+        sStart.timingFunctions = sEnd.timingFunctions
+        let draw = CAAnimationGroup()
+        draw.animations = [sStart, sEnd]; draw.duration = 0.62; draw.beginTime = t0
+        draw.fillMode = .both; draw.isRemovedOnCompletion = true
+        sLayer.add(draw, forKey: "draw")
 
-        splashIntroEndsAt = Date().addingTimeInterval(1.5)
+        // 2. Logo "thở" + ánh đỏ toả (0.55s)
+        UIView.animateKeyframes(withDuration: 0.9, delay: start + 0.55, options: [.calculationModeCubic]) {
+            UIView.addKeyframe(withRelativeStartTime: 0, relativeDuration: 0.4) { icon.transform = CGAffineTransform(scaleX: 1.06, y: 1.06) }
+            UIView.addKeyframe(withRelativeStartTime: 0.4, relativeDuration: 0.6) { icon.transform = .identity }
+        }
+        let g = CAKeyframeAnimation(keyPath: "opacity")
+        g.values = [0, 1, 0]; g.keyTimes = [0, 0.4, 1]
+        let gs = CABasicAnimation(keyPath: "transform.scale"); gs.fromValue = 0.8; gs.toValue = 1.25
+        let glowAnim = CAAnimationGroup(); glowAnim.animations = [g, gs]; glowAnim.duration = 1.1
+        glowAnim.beginTime = CACurrentMediaTime() + start + 0.55; glowAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        glow.add(glowAnim, forKey: "glow")
+
+        // 3. Tên trượt lên (0.75s), dòng HR PORTAL hiện mờ (0.95s)
+        UIView.animate(withDuration: 0.5, delay: start + 0.75, usingSpringWithDamping: 0.9, initialSpringVelocity: 0, options: []) {
+            name.alpha = 1; name.transform = .identity
+        }
+        UIView.animate(withDuration: 0.5, delay: start + 0.95, options: [.curveEaseOut]) { sub.alpha = 1 }
+
+        splashIntroEndsAt = Date().addingTimeInterval(start + 1.5)
     }
 
     // Chỉ tắt 1 lần — gọi lại (vd didFinish bắn nhiều lần khi điều hướng trang khác sau Home) không
@@ -689,29 +722,22 @@ class ViewController: UIViewController {
             }
             return
         }
-
         didDismissSplash = true
 
-        // Phóng to cả cụm logo rồi mờ dần, để lộ trang bên dưới — cảm giác "đi xuyên qua logo vào
-        // trong app" thay vì màn hình trắng mờ đi.
-        // Thu nhỏ và bay lên ĐÚNG chỗ logo nằm trên trang Đăng nhập, rồi mờ đi — mắt người dùng
-        // bám theo logo từ màn hình mở app sang thẳng trang đăng nhập, không thấy đứt đoạn.
-        let targetY = view.bounds.height * 0.13          // chỗ logo trên trang Đăng nhập
-        let dy = targetY - (self.splashGroup?.center.y ?? 0)
-
-        // Trang web mờ dần hiện lên TRONG LÚC logo còn đang bay, thay vì đợi logo xong rồi trang
-        // mới bật ra — chờ xong mới đổi là ra cảm giác hai cảnh rời nhau.
-        self.webView?.alpha = 0
-        UIView.animate(withDuration: 0.4, delay: 0.18, options: [.curveEaseOut]) {
-            self.webView?.alpha = 1
+        // Thoát: icon phóng nhẹ + mờ, màn trắng mờ đi, TRANG APP hiện ra từ phía sau (mờ dần + 97%→100%)
+        // — đúng với mọi trang đích (Đăng nhập hay Trang chủ), không bay logo tới chỗ nào cả.
+        if let wv = webView {
+            wv.alpha = 0
+            wv.transform = CGAffineTransform(scaleX: 0.97, y: 0.97)
+            UIView.animate(withDuration: 0.5, delay: 0.05, usingSpringWithDamping: 1, initialSpringVelocity: 0, options: []) {
+                wv.alpha = 1; wv.transform = .identity
+            }
         }
-
-        UIView.animate(withDuration: 0.6, delay: 0, usingSpringWithDamping: 0.86,
-                       initialSpringVelocity: 0.2, options: [.curveEaseInOut], animations: {
-            self.splashGroup?.transform = CGAffineTransform(translationX: 0, y: dy)
-                .scaledBy(x: 0.46, y: 0.46)
-        }, completion: nil)
-        UIView.animate(withDuration: 0.34, delay: 0.2, options: [.curveEaseInOut], animations: {
+        UIView.animate(withDuration: 0.45, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 0, options: []) {
+            self.splashGroup?.transform = CGAffineTransform(scaleX: 1.35, y: 1.35)
+            self.splashGroup?.alpha = 0
+        }
+        UIView.animate(withDuration: 0.45, delay: 0, options: [.curveEaseOut], animations: {
             splash.alpha = 0
         }, completion: { _ in
             splash.removeFromSuperview()

@@ -350,6 +350,7 @@ public static class SideMenuBuilder
                     //new() { Title = "Gửi thông báo",          Url = "~/AdminNoti/Create",          Icon = "edit_notifications" },
                     new() { Title = "Thông báo",       Url = "~/AdminNoti/Index",           Icon = "campaign",        Group = "system" },
                     new() { Title = "Quản lý Kaizen",  Url = "~/KaizenAdmin/Index",         Icon = "tips_and_updates", Group = "system" },
+                    new() { Title = "Toàn bộ nhân viên",     Url = "~/Employee/AllEmployees",     Icon = "groups",          Group = "system" },
                     new() { Title = "Tra cứu Danh bạ NV",    Url = "~/Directory/Index",           Icon = "contact_page",    Group = "system" },
                 ]
             },

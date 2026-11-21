@@ -882,20 +882,15 @@ class ViewController: UIViewController {
 extension ViewController {
     fileprivate func checkAppVersion() {
         let currentVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.0"
-        // appURL dạng "https://hr.esamho.com/HR_Web" -> đổi sang "https://hr.esamho.com/HR_api/apiHR"
-        let apiBase = appURL.replacingOccurrences(of: "/HR_Web", with: "/HR_api/apiHR")
-        var urlStr = "\(apiBase)/AppVersion/check?platform=ios&version=\(currentVersion)"
-        // Chưa có empcd (chưa đăng nhập xong/web chưa tải) -> vẫn check được, chỉ là updateUrl rơi về
-        // link cấu hình chung (appsettings.json) thay vì link riêng của NV — gọi lại lần nữa ngay khi
-        // web báo setEmpcd để có link chính xác.
-        if let empcd = ViewController.currentEmpcd, !empcd.isEmpty {
-            urlStr += "&empcd=\(empcd.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? empcd)"
-        }
-        guard let url = URL(string: urlStr) else { return }
+        // Bảo mật 2026-11-21: hỏi qua HR_web (/AppVersion/Check), KHÔNG gọi thẳng HR_api kèm API key gắn cứng
+        // trong app nữa (ai giải nén IPA là có key gọi được toàn bộ HR_api). HR_web lấy mã NV từ cookie đăng
+        // nhập của WebView gửi kèm bên dưới, nên vẫn trả đúng link App Store riêng của NV — chưa đăng nhập
+        // thì ra link chung, và setEmpcd sẽ gọi lại lần nữa sau khi đăng nhập xong.
+        let v = currentVersion.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? currentVersion
+        guard let url = URL(string: "\(appURL)/AppVersion/Check?platform=ios&version=\(v)") else { return }
 
         var request = URLRequest(url: url, timeoutInterval: 10)
         request.httpMethod = "GET"
-        request.setValue("ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9", forHTTPHeaderField: "X-Api-Key")
         // Gọi thẳng bằng URLSession (không qua WKWebView) nên KHÔNG tự mang UA đã sửa ở setupWebView()
         // — vẫn là UA mặc định của URLSession (không có "Mozilla/5.0..."), nghi cũng bị chặn/treo bởi
         // cùng rule WAF đã phát hiện hôm 2026-10-30 (lần này thành timeout thay vì "Forbidden" — log
@@ -907,22 +902,37 @@ extension ViewController {
             "Mozilla/5.0 (iPhone; CPU iPhone OS like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MySamhoMobile/iOS",
             forHTTPHeaderField: "User-Agent")
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
-            guard error == nil, let data = data,
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  json["success"] as? Bool == true,
-                  json["forceUpdate"] as? Bool == true,
-                  self?.hasShownForceUpdateAlert != true else { return }
-            self?.hasShownForceUpdateAlert = true
+        // Gắn cookie phiên của WebView (URLSession không tự dùng chung cookie với WKWebView).
+        let send: (URLRequest) -> Void = { request in
+            URLSession.shared.dataTask(with: request) { [weak self] data, _, error in
+                guard error == nil, let data = data,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      json["success"] as? Bool == true,
+                      json["forceUpdate"] as? Bool == true,
+                      self?.hasShownForceUpdateAlert != true else { return }
+                self?.hasShownForceUpdateAlert = true
 
-            let latest = json["latestVersion"] as? String ?? "?"
-            let note   = json["releaseNote"] as? String ?? "Vui lòng cập nhật để tiếp tục sử dụng."
-            let updateUrl = json["updateUrl"] as? String ?? ""
+                let latest = json["latestVersion"] as? String ?? "?"
+                let note   = json["releaseNote"] as? String ?? "Vui lòng cập nhật để tiếp tục sử dụng."
+                let updateUrl = json["updateUrl"] as? String ?? ""
 
-            DispatchQueue.main.async {
-                self?.showForceUpdateDialog(latestVersion: latest, note: note, updateUrl: updateUrl)
+                DispatchQueue.main.async {
+                    self?.showForceUpdateDialog(latestVersion: latest, note: note, updateUrl: updateUrl)
+                }
+            }.resume()
+        }
+        guard let store = webView?.configuration.websiteDataStore.httpCookieStore else { send(request); return }
+        store.getAllCookies { cookies in
+            var req = request
+            let host = url.host ?? ""
+            let mine = cookies.filter { c in
+                let d = c.domain.hasPrefix(".") ? String(c.domain.dropFirst()) : c.domain
+                return host == d || host.hasSuffix("." + d)
             }
-        }.resume()
+            HTTPCookie.requestHeaderFields(with: mine).forEach { req.setValue($0.value, forHTTPHeaderField: $0.key) }
+            req.httpShouldHandleCookies = false   // không để kho cookie riêng của URLSession ghi đè header trên
+            send(req)
+        }
         // Không có mạng / API lỗi -> im lặng bỏ qua, không chặn user (giống Android).
     }
 
@@ -1071,6 +1081,28 @@ extension ViewController: WKNavigationDelegate {
         diagLog("didFail code=\((error as NSError).code) \(error.localizedDescription)")
         if (error as NSError).code == NSURLErrorCancelled { return }
         showNoNetwork()
+    }
+
+    // Bảo mật 2026-11-21: chỉ trang của chính HR_Web được mở TRONG app. Các cầu nối messageHandlers
+    // (saveCredentials nhận mật khẩu để lưu Face ID, setEmpcd...) gắn vào MỌI trang WebView mở ra — trước đây
+    // bấm 1 link ngoài trong bản tin/thông báo là trang lạ cũng chạy trong app và gọi được chúng.
+    // Link http(s) sang tên miền khác -> mở bằng Safari; tel:/mailto:/App Store... -> app tương ứng.
+    // Chỉ xét khung chính: iframe nhúng (video...) trong trang của mình vẫn tải bình thường.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url,
+              navigationAction.targetFrame?.isMainFrame ?? true else { decisionHandler(.allow); return }
+        let scheme = (url.scheme ?? "").lowercased()
+        if ["about", "blob", "data", "javascript"].contains(scheme) { decisionHandler(.allow); return }
+        let appHost = (URL(string: appURL)?.host ?? "").lowercased()
+        if (scheme == "http" || scheme == "https") && (url.host ?? "").lowercased() == appHost {
+            decisionHandler(.allow); return
+        }
+        decisionHandler(.cancel)
+        UIApplication.shared.open(url)
     }
 
     func webView(

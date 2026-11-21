@@ -22,8 +22,7 @@ public class GuideController : BaseController
     }
 
     // 2026-11-16: bỏ [AllowAnonymous] — sếp yêu cầu phải đăng nhập mới xem được hướng dẫn
-    // (lối vào ở trang Đăng nhập cũng đã bỏ). RequestAppLink/ReassignAppLink bên dưới VẪN phải
-    // anonymous vì chạy trước lúc đăng nhập (NV bấm link tải app).
+    // (lối vào ở trang Đăng nhập cũng đã bỏ).
     public async Task<IActionResult> Index()
     {
         var list = await _service.GetListAsync();
@@ -59,23 +58,29 @@ public class GuideController : BaseController
         return View(model);
     }
 
-    // POST /Guide/RequestAppLink — nhân viên nhập mã thẻ để nhận link cài app iOS
+    // POST /Guide/RequestAppLink — nhân viên lấy link cài app iOS cho CHÍNH MÌNH.
+    // Bảo mật 2026-11-21: trước đây [AllowAnonymous] + lấy mã thẻ từ form → người ngoài gõ mã thẻ bất kỳ
+    // là lấy được link của người khác và đốt hết 3 lượt của họ. Trang Hướng dẫn đã bắt đăng nhập từ
+    // 2026-11-16 nên giờ bắt đăng nhập luôn và luôn dùng mã thẻ của phiên, bỏ qua giá trị gửi lên.
+    // HR lấy giùm NV khác ở AppLinkAdmin.
     [HttpPost]
-    [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> RequestAppLink(string empcd)
+    public async Task<IActionResult> RequestAppLink(string? empcd)
     {
-        var result = await _appLinkSvc.RequestLinkAsync(empcd);
+        var own = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(own)) return Unauthorized();
+        var result = await _appLinkSvc.RequestLinkAsync(own);
         return Json(result);
     }
 
-    // POST /Guide/ReassignAppLink — "Đổi máy mới": đóng link cũ, phát link mới
+    // POST /Guide/ReassignAppLink — "Đổi máy mới": đóng link cũ, phát link mới (cũng chỉ cho chính mình)
     [HttpPost]
-    [AllowAnonymous]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> ReassignAppLink(string empcd)
+    public async Task<IActionResult> ReassignAppLink(string? empcd)
     {
-        var result = await _appLinkSvc.ReassignAsync(empcd, CurrentUser?.EmpCd);
+        var own = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(own)) return Unauthorized();
+        var result = await _appLinkSvc.ReassignAsync(own, own);
         return Json(result);
     }
 

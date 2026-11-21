@@ -151,6 +151,11 @@ public abstract class InquiryBaseController : BaseController
     public IActionResult GetFile(string path, [FromServices] IConfiguration config, long exp = 0, string? sig = null)
     {
         if (string.IsNullOrWhiteSpace(path) || path.Contains("..")) return NotFound();
+        // Chỉ file đính kèm hộp thư (bảo mật 2026-11-21): trước đây ai đăng nhập cũng đọc được MỌI file
+        // trên ổ \\192.168.1.5\vserp_picture (chữ ký, ảnh thẻ...) qua tham số path. DB thật: 800/800 file
+        // đính kèm đều nằm dưới INQUIRY/.
+        if (!path.Replace('\\', '/').StartsWith("INQUIRY/", StringComparison.OrdinalIgnoreCase) || path.Contains(':'))
+            return NotFound();
 
         bool hasValidToken = exp > 0 && !string.IsNullOrEmpty(sig)
             && MaterialUrlTokenHelper.Verify(path, "", exp, sig, config?["MaterialTokenSecret"] ?? "");

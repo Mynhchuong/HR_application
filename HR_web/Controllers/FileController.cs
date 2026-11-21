@@ -146,9 +146,10 @@ public class FileController : BaseController
     {
         if (string.IsNullOrWhiteSpace(subFolder) || string.IsNullOrWhiteSpace(fileName))
             return BadRequest();
-        if (subFolder.Contains("..") || subFolder.Contains('/') || subFolder.Contains('\\'))
+        // Có cả ':' (bảo mật 2026-11-21): "C:abc" là đường dẫn gốc trên Windows, Path.Combine sẽ bỏ thư mục phía trước.
+        if (subFolder.Contains("..") || subFolder.IndexOfAny(new[] { '/', '\\', ':' }) >= 0)
             return NotFound();
-        if (fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+        if (fileName.Contains("..") || fileName.IndexOfAny(new[] { '/', '\\', ':' }) >= 0)
             return NotFound();
 
         bool hasValidToken = exp > 0 && !string.IsNullOrEmpty(sig)

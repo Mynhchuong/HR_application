@@ -34,14 +34,75 @@ window.InquiryChat = (function () {
         return base ? `${base}?${def.urlParam}=${encodeURIComponent(id)}` : '#';
     }
 
-    // ─── Sanitize HTML (light) ───────────────────────────────
+    // ─── Lọc HTML tin nhắn — VIẾT LẠI 2026-11-21 (bảo mật) ─────────────────────────
+    // Bản cũ chỉ xoá vài mẫu xấu bằng regex → lách dễ (<svg/onload=...>, "jav&#x61;script:"), công nhân gửi
+    // tin là mã chạy trong phiên HR/CSR. Giờ để trình duyệt tự phân tích HTML trong 1 tài liệu "chết"
+    // (DOMParser: không chạy script, không tải ảnh), rồi chỉ DỰNG LẠI thẻ/thuộc tính trong danh sách cho
+    // phép. Cùng luật với ChatHtmlHelper.Sanitize phía server.
+    const SAFE_TAGS = new Set(['p', 'br', 'span', 'a', 'img', 'strong', 'b', 'em', 'i', 'u', 's', 'mark',
+        'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'h1', 'h2', 'h3', 'h4', 'hr']);
+    const VOID_TAGS = new Set(['br', 'img', 'hr']);
+    const DROP_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'template', 'noscript',
+        'textarea', 'title', 'svg', 'math', 'select']);
+    const CSS_COLOR = /^(#[0-9a-f]{3,8}|rgba?\(\s*[0-9.%\s,]+\)|[a-z]{3,20})$/i;
+
+    function safeUrl(v, imageOnly) {
+        const c = String(v || '').replace(/[\s\u0000-\u001f\u007f-\u009f]/g, '');
+        if (!c) return null;
+        if (imageOnly) return (c[0] === '/' && c[1] !== '/' && c[1] !== '\\') ? c : null;
+        const colon = c.indexOf(':');
+        const stop = c.search(/[\/?#]/);
+        if (colon < 0 || (stop >= 0 && stop < colon)) return c;
+        return /^(https?|mailto|tel)$/i.test(c.slice(0, colon)) ? c : null;
+    }
+
+    function safeStyle(v) {
+        const out = [];
+        String(v || '').split(';').forEach(decl => {
+            const i = decl.indexOf(':');
+            if (i <= 0) return;
+            const prop = decl.slice(0, i).trim().toLowerCase();
+            const val = decl.slice(i + 1).trim();
+            if ((prop === 'color' || prop === 'background-color') && CSS_COLOR.test(val)) out.push(prop + ': ' + val);
+            else if (prop === 'text-align' && /^(left|right|center|justify)$/i.test(val)) out.push('text-align: ' + val.toLowerCase());
+        });
+        return out.length ? out.join('; ') : null;
+    }
+
     function safeHtml(html) {
-        if (html == null) return '';
-        return String(html)
-            .replace(/<script[\s\S]*?<\/script>/gi, '')
-            .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-            .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-            .replace(/javascript:/gi, '');
+        if (html == null || html === '') return '';
+        const doc = new DOMParser().parseFromString('<!doctype html><body>' + String(html), 'text/html');
+        const box = doc.createElement('div');
+        (function walk(src, dst) {
+            src.childNodes.forEach(n => {
+                if (n.nodeType === 3) { dst.appendChild(doc.createTextNode(n.nodeValue)); return; }
+                if (n.nodeType !== 1) return;
+                const tag = n.nodeName.toLowerCase();
+                if (DROP_TAGS.has(tag)) return;
+                if (!SAFE_TAGS.has(tag)) { walk(n, dst); return; }   // bỏ thẻ lạ, giữ chữ bên trong
+                const el = doc.createElement(tag);
+                const get = a => n.getAttribute(a);
+                if (tag === 'a') {
+                    const href = safeUrl(get('href'), false);
+                    if (href) { el.setAttribute('href', href); el.setAttribute('target', '_blank'); el.setAttribute('rel', 'noopener noreferrer nofollow'); }
+                } else if (tag === 'img') {
+                    const src = safeUrl(get('src'), true);
+                    if (!src) return;                                   // ảnh ngoài/không hợp lệ → bỏ
+                    el.setAttribute('src', src);
+                    ['alt', 'filename'].forEach(a => { if (n.hasAttribute(a)) el.setAttribute(a, get(a)); });
+                    ['width', 'height'].forEach(a => { if (/^\d{1,5}$/.test(get(a) || '')) el.setAttribute(a, get(a)); });
+                } else if (tag === 'ol' && /^\d{1,5}$/.test(get('start') || '')) {
+                    el.setAttribute('start', get('start'));
+                } else if (tag === 'mark' && CSS_COLOR.test((get('data-color') || '').trim())) {
+                    el.setAttribute('data-color', get('data-color').trim());
+                }
+                const st = safeStyle(get('style'));
+                if (st) el.setAttribute('style', st);
+                dst.appendChild(el);
+                if (!VOID_TAGS.has(tag)) walk(n, el);
+            });
+        })(doc.body, box);
+        return box.innerHTML;
     }
 
     function esc(s) {

@@ -131,14 +131,18 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 
 var app = builder.Build();
 
-app.UseDeveloperExceptionPage();
-
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// Bảo mật 2026-11-21: trang lỗi chi tiết (stack trace, câu SQL) và Swagger (bản đồ toàn bộ API) chỉ bật
+// khi chạy Development. Production trước đây bật cả hai, mà HR_api có lối ra internet (app gọi AppVersion).
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("swagger/v1/swagger.json", "HR API v1");
-    c.RoutePrefix = string.Empty;
-});
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("swagger/v1/swagger.json", "HR API v1");
+        c.RoutePrefix = string.Empty;
+    });
+}
 
 app.UseStaticFiles();  // serve /uploads/menu/...
 
@@ -157,7 +161,8 @@ app.MapGet("/check-db", async (OracleService db) =>
     }
     catch (Exception ex)
     {
-        return Results.Ok(new { success = false, message = "LỖI KẾT NỐI DB: " + ex.Message, detail = ex.ToString() });
+        // Không trả ex.ToString() (lộ chuỗi kết nối/đường dẫn server); /check-db giờ cũng cần API key.
+        return Results.Ok(new { success = false, message = "LỖI KẾT NỐI DB: " + ex.Message });
     }
 });
 

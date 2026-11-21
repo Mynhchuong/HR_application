@@ -27,13 +27,15 @@ public class CanteenOrderController : ControllerBase
                 WHERE a.empcd        = b.empcd(+)
                 AND   a.empcd        = :EMPCD
                 AND   b.dat(+)       = :DAT
-                AND   b.type_meal(+) = '{mealCat}'
+                AND   b.type_meal(+) = :MEAL
                 AND   a.jeajikgb     = 'Y'";
 
             var rows = await _db.ExecuteQueryAsync(sql,
                 r => r["type_of_food"]?.ToString() ?? "M",
                 new OracleParameter("EMPCD", empcd),
-                new OracleParameter("DAT",   dateStr));
+                new OracleParameter("DAT",   dateStr),
+                // Bind thay cho ghép chuỗi (bảo mật 2026-11-21): typeMeal đến từ query string.
+                new OracleParameter("MEAL",  mealCat));
 
             var typeDb = rows.FirstOrDefault() ?? "M";
             var (typeApp, nameApp) = typeDb switch

@@ -444,6 +444,12 @@ public class AccountController : ControllerBase
                 return Ok(new { success = false, message = "Ngày cấp CCCD không hợp lệ" });
             }
 
+            // Chống dò CCCD/ngày cấp (bảo mật 2026-11-21): trước đây thử sai không giới hạn — biết số CCCD (hay
+            // nằm trên giấy tờ photo) là dò được ngày cấp (~3.650 lần cho 10 năm) rồi đặt lại mật khẩu, chiếm
+            // tài khoản. Dùng chung bộ đếm với đăng nhập: sai 5 lần / 15 phút → khoá 15 phút.
+            if (LoginThrottle.LockedUntil(req.Empcd) is DateTime fpLock)
+                return Ok(new { success = false, message = LoginThrottle.LockedMessage(fpLock) });
+
             // 1) Verify CCCD + ngày cấp khớp với ECM100
             // Normalize cả 2 đầu (loại '/', '-', '.', space) để khỏi sai format
             var verify = await _oracleService.ExecuteQueryAsync(@"
@@ -460,7 +466,13 @@ public class AccountController : ControllerBase
                 new OracleParameter("JUMINNO_DATE", juminnoDate));
 
             if (verify.Count == 0)
-                return Ok(new { success = false, message = "CCCD hoặc ngày cấp không khớp với hồ sơ. Vui lòng kiểm tra lại hoặc liên hệ phòng Nhân sự." });
+            {
+                var (left, lockedUntil) = LoginThrottle.Fail(req.Empcd);
+                if (lockedUntil is DateTime lu)
+                    return Ok(new { success = false, message = LoginThrottle.LockedMessage(lu) });
+                return Ok(new { success = false, message = "CCCD hoặc ngày cấp không khớp với hồ sơ. Vui lòng kiểm tra lại hoặc liên hệ phòng Nhân sự."
+                                                          + (left <= 2 ? $" (Còn {left} lần thử)" : "") });
+            }
 
             // 2) Verify HR_USERS có tồn tại + check rate limit
             var userRows = await _oracleService.ExecuteQueryAsync(@"

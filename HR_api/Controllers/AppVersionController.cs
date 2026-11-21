@@ -49,7 +49,11 @@ public class AppVersionController : ControllerBase
             string url    = section["UpdateUrl"]     ?? "";
             string note   = section["ReleaseNote"]   ?? "";
 
-            if (isIos && !string.IsNullOrWhiteSpace(empcd))
+            // Link redeem riêng của NV chỉ trả cho lời gọi có API key (tức HR_web, đã biết chắc NV đang đăng
+            // nhập). App gọi thẳng không key → chỉ link chung, không thì ai gõ mã thẻ cũng lấy được link
+            // của người khác (bảo mật 2026-11-21, xem ApiKeyMiddleware).
+            bool trusted = HttpContext.Items[HR_api.Middleware.ApiKeyMiddleware.ValidKeyItem] is true;
+            if (isIos && trusted && !string.IsNullOrWhiteSpace(empcd))
             {
                 var assigned = await _db.ExecuteQueryAsync(@"
                     SELECT LINK_URL FROM (

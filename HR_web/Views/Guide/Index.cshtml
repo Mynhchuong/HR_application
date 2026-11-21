@@ -286,8 +286,10 @@
         </div>
         @Html.AntiForgeryToken()
         <div class="applink-input-row">
-            <input type="text" id="applinkEmpcd" placeholder="Nhập mã thẻ / Enter your employee code" autocomplete="off"
-                   onkeydown="if(event.key==='Enter') requestAppLink()" />
+            @* Chỉ lấy link cho CHÍNH MÌNH (bảo mật 2026-11-21) — server cũng ép mã thẻ đang đăng nhập.
+               HR lấy giùm NV khác ở trang Quản lý link app (AppLinkAdmin). *@
+            <input type="text" id="applinkEmpcd" value="@(HR_web.Helpers.AuthHelper.GetCurrentUser(User)?.EmpCd)" readonly
+                   autocomplete="off" onkeydown="if(event.key==='Enter') requestAppLink()" />
             <button type="button" id="applinkBtn" onclick="requestAppLink()">Nhận link / Get link</button>
         </div>
         <div class="applink-result" id="applinkResult"></div>

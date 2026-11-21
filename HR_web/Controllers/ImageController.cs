@@ -42,9 +42,18 @@ public class ImageController : BaseController
     }
 
     // ── Helper chung: đọc file từ network share và trả về ảnh ───────────────
+    // fileName chỉ được là TÊN FILE trần. Chặn "..", "/", "\" và ":" (bảo mật 2026-11-21): trước đây
+    // chỉ chặn "..", mà Path.Combine(folder, "C:\x\appsettings.json") trả thẳng đường dẫn tuyệt đối
+    // phía sau → GetFoodImage (không cần đăng nhập) đọc được file bất kỳ trên server, còn
+    // "\\máy-lạ\share\a" thì server tự kết nối SMB ra ngoài (lộ hash đăng nhập của server).
+    private static bool IsPlainFileName(string? fileName) =>
+        !string.IsNullOrWhiteSpace(fileName) &&
+        fileName.IndexOfAny(new[] { '/', '\\', ':' }) < 0 &&
+        !fileName.Contains("..");
+
     private IActionResult ServeNetworkImage(string filePath, string fileName)
     {
-        if (string.IsNullOrWhiteSpace(fileName) || fileName.Contains(".."))
+        if (!IsPlainFileName(fileName))
             return NotFound();
         try
         {
@@ -65,15 +74,17 @@ public class ImageController : BaseController
     }
 
     // ── Ảnh nhân viên ───────────────────────────────────────────────────────
-    // AllowAnonymous: trang Directory (xem thông tin đồng nghiệp) không cần login vẫn phải load được avatar.
+    // Bắt buộc đăng nhập (bảo mật 2026-11-21): trước đây AllowAnonymous cho trang Directory, nhưng
+    // Directory đã [Authorize] từ 2026-11-16 — để mở thì người ngoài internet dò mã thẻ là tải được
+    // ảnh thẻ của cả công ty. Cache chỉ ở trình duyệt (Client), không cho proxy giữ hộ.
     // ResponseCache 1h — trước đây KHÔNG cache, mỗi lần mở trang Hồ sơ đều tải lại ảnh gốc từ
     // network share dù ảnh không đổi, góp phần làm trang chậm/nặng trên máy yếu (yêu cầu 2026-10-02,
     // video báo app "reload liên tục" — ảnh nặng + không cache kéo dài thời gian load mỗi lần).
-    [HttpGet, AllowAnonymous]
-    [ResponseCache(Duration = 3600)]
+    [HttpGet]
+    [ResponseCache(Duration = 3600, Location = ResponseCacheLocation.Client)]
     public IActionResult GetEmployeeImage(string empCd)
     {
-        if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
+        if (string.IsNullOrWhiteSpace(empCd) || !empCd.All(char.IsLetterOrDigit)) return BadRequest();
         var fileName = empCd + ".jpg";
         return ServeNetworkImage(Path.Combine(EmployeeFolder, fileName), fileName);
     }
@@ -179,10 +190,10 @@ public class ImageController : BaseController
     // ── Chữ ký ──────────────────────────────────────────────────────────────
     // Chữ ký gần như không đổi sau khi tạo — cache dài hơn avatar (86400 = 1 ngày).
     [HttpGet]
-    [ResponseCache(Duration = 86400)]
+    [ResponseCache(Duration = 86400, Location = ResponseCacheLocation.Client)]
     public IActionResult GetSignature(string empCd)
     {
-        if (string.IsNullOrWhiteSpace(empCd)) return BadRequest();
+        if (string.IsNullOrWhiteSpace(empCd) || !empCd.All(char.IsLetterOrDigit)) return BadRequest();
         var fileName = empCd + ".jpg";
         return ServeNetworkImage(Path.Combine(SignatureFolder, fileName), fileName);
     }
@@ -370,6 +381,7 @@ public class ImageController : BaseController
 
     private IActionResult ServeNetworkVideo(string filePath, string fileName)
     {
+        if (!IsPlainFileName(fileName)) return NotFound();
         try
         {
             byte[] bytes;
@@ -522,8 +534,7 @@ public class ImageController : BaseController
     // Xoá 1 file banner khỏi network share (best-effort). Dùng khi thay ảnh banner để không tồn rác.
     internal static void TryDeleteHomeBannerFile(string? fileName)
     {
-        if (string.IsNullOrWhiteSpace(fileName) ||
-            fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+        if (!IsPlainFileName(fileName))
             return;
         try
         {

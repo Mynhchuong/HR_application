@@ -509,11 +509,12 @@ async function loadWorks(lineCd, selWork) {
 $dept.addEventListener('change', async () => { await loadLines($dept.value, ''); });
 $line.addEventListener('change', async () => { await loadWorks($line.value, ''); });
 
-// Hydrate on page load (khi đã có filter)
+// Hydrate on page load (khi đã có filter). Giá trị lọc lấy từ URL → mã hoá JSON (bảo mật 2026-11-21),
+// trước đây ghép thẳng vào chuỗi JS: link có ?FilterDept=';...// là chạy mã trong phiên admin.
 (async () => {
-    const d = '@Html.Raw(Model.FilterDept ?? "")';
-    const l = '@Html.Raw(Model.FilterLine ?? "")';
-    const w = '@Html.Raw(Model.FilterWork ?? "")';
+    const d = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FilterDept ?? ""));
+    const l = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FilterLine ?? ""));
+    const w = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.FilterWork ?? ""));
     if (d) { await loadLines(d, l); if (l) await loadWorks(l, w); }
 })();
 

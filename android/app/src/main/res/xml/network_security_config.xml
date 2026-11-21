@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bảo mật 2026-11-21: trước đây usesCleartextTraffic="true" cho phép http thường tới MỌI nơi.
+     Giờ chỉ server nội bộ của công ty được dùng http (mạng nội bộ chưa có https); mọi nơi khác bắt buộc https. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">sa1-hanaro.esamho.com</domain>
+        <domain includeSubdomains="false">192.168.1.24</domain>
+    </domain-config>
+</network-security-config>

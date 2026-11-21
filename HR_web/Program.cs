@@ -161,6 +161,17 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+// Header bảo mật cơ bản (2026-11-21): không cho trang khác nhúng HR_Web vào iframe (chống lừa bấm),
+// trình duyệt không tự đoán kiểu file, và không gửi nguyên URL (có thể kèm mã đơn/mã NV) sang trang ngoài.
+app.Use(async (ctx, next) =>
+{
+    var h = ctx.Response.Headers;
+    h["X-Frame-Options"]        = "SAMEORIGIN";
+    h["X-Content-Type-Options"] = "nosniff";
+    h["Referrer-Policy"]        = "strict-origin-when-cross-origin";
+    await next();
+});
+
 app.UseStatusCodePages(ctx =>
 {
     var code = ctx.HttpContext.Response.StatusCode;

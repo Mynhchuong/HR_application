@@ -133,7 +133,9 @@ public class MainActivity extends AppCompatActivity {
         // console/network lúc bug "load liên tục" xảy ra thật trên máy NV, thay vì đoán qua video
         // (điều tra 2026-10-03). Không ảnh hưởng NV bình thường — chỉ dùng được khi cắm cáp USB vào
         // máy tính đã bật USB debugging, không có cách nào kích hoạt từ xa/không cắm dây.
-        WebView.setWebContentsDebuggingEnabled(true);
+        // Bảo mật 2026-11-21: chỉ bật ở bản debug. Bản phát hành bật thì ai cầm máy NV đang mở khoá + cắm cáp
+        // là đọc được cookie đăng nhập qua chrome://inspect. Cần soi máy thật thì cài bản debug.
+        WebView.setWebContentsDebuggingEnabled(isAppDebuggable());
 
         createNotificationChannel();
         requestNotificationPermission();
@@ -196,6 +198,11 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         
         webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return request.isForMainFrame() && openOutsideIfForeign(request.getUrl());
+            }
+
             @SuppressWarnings("deprecation")
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
@@ -1108,15 +1115,14 @@ public class MainActivity extends AppCompatActivity {
                             .getPackageInfo(getPackageName(), 0).versionName;
                 } catch (PackageManager.NameNotFoundException e) { currentVersion = "0.0"; }
 
-                // selectedBaseUrl có thể là "/hr_Web" (nội bộ) hoặc "/HR_Web" (ngoài) — 2 case khác
-                // nhau tuỳ domain (xác nhận thật 2026-10-30), .replace() thường phân biệt hoa/thường
-                // nên phải thay bằng regex (?i) mới khớp được cả 2, không được hardcode đúng 1 case.
-                String apiBase = selectedBaseUrl.replaceFirst("(?i)/hr_web", "/HR_api/apiHR");
-                String urlStr  = apiBase + "/AppVersion/check?platform=android&version=" + currentVersion;
+                // Bảo mật 2026-11-21: hỏi qua HR_web (/AppVersion/Check), KHÔNG gọi thẳng HR_api nữa. Trước đây
+                // gọi HR_api kèm API key gắn cứng trong APK — ai giải nén APK là có key gọi được toàn bộ HR_api.
+                // HR_web tự dùng key nằm trên server, app không cần biết key nào.
+                String urlStr  = selectedBaseUrl + "/AppVersion/Check?platform=android&version="
+                        + android.net.Uri.encode(currentVersion);
 
                 HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("X-Api-Key", "ac36484900c47f33feb65c507a7706ccf1bb0d22f18a13f9aea117a2a21e6dc9");
                 // Gọi thẳng bằng HttpURLConnection (không qua WebView) nên KHÔNG tự mang UA đã sửa ở
                 // onCreate() — vẫn là UA mặc định Java/Dalvik, nghi bị chặn/treo bởi cùng WAF rule đã
                 // phát hiện 2026-10-30 (bên iOS log thật AppVersion/check timeout -1001 lúc khởi động).
@@ -1200,6 +1206,35 @@ public class MainActivity extends AppCompatActivity {
     // Xem ghi chú ở bioLog() bên iOS — chỉ in ở bản Debug.
     // Không dùng BuildConfig.DEBUG vì AGP 8 mặc định không sinh lớp BuildConfig; đọc cờ debuggable
     // của chính app là đủ và không phải bật thêm tính năng build nào.
+    private boolean isAppDebuggable() {
+        return (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
+    // Bảo mật 2026-11-21: chỉ trang của chính HR_Web được mở TRONG app. Cầu nối window.Android (lấy token
+    // FCM, nhận mật khẩu để lưu đăng nhập vân tay...) gắn vào MỌI trang WebView mở ra — trước đây bấm 1
+    // link ngoài trong bản tin/thông báo là trang lạ cũng chạy trong app và gọi được cầu nối đó.
+    // Link http(s) sang tên miền khác -> mở bằng trình duyệt của máy; tel:/mailto:/... -> app tương ứng.
+    private static final java.util.Set<String> APP_HOSTS = new java.util.HashSet<>(java.util.Arrays.asList(
+            hostOf(INTERNAL_BASE_URL), hostOf(EXTERNAL_BASE_URL), "192.168.1.24"));
+
+    private static String hostOf(String url) {
+        try { String h = Uri.parse(url).getHost(); return h == null ? "" : h.toLowerCase(java.util.Locale.ROOT); }
+        catch (Exception e) { return ""; }
+    }
+
+    /** true = app tự xử lý (không cho WebView mở). */
+    private boolean openOutsideIfForeign(Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        if (scheme.equals("about") || scheme.equals("blob") || scheme.equals("data") || scheme.equals("javascript"))
+            return false;
+        if ((scheme.equals("http") || scheme.equals("https"))
+                && APP_HOSTS.contains(uri.getHost() == null ? "" : uri.getHost().toLowerCase(java.util.Locale.ROOT)))
+            return false;
+        try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { }
+        return true;
+    }
+
     private static void bioLog(Context ctx, String msg) {
         if (ctx != null && (ctx.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
             android.util.Log.d("BIO", msg);

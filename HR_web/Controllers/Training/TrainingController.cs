@@ -160,6 +160,10 @@ public class TrainingController : BaseController
         ViewBag.MaterialTitle = string.IsNullOrEmpty(title) ? "Tài liệu học tập" : title;
 
         var (effectiveType, effectiveUrl) = ResolvePreviewFile(fileType ?? "", fileUrl);
+        // Chỉ nhận đường dẫn nội bộ của chính web (bảo mật 2026-11-21): fileUrl đi thẳng từ query string vào
+        // <iframe src>/<a href> → link "...&fileUrl=javascript:..." gửi cho NV là chạy mã trong phiên của họ.
+        // Tài liệu thật luôn là /HR_Web/File/GetTrainingMaterial?... (đường dẫn nội bộ).
+        if (!Url.IsLocalUrl(effectiveUrl)) effectiveUrl = "";
         ViewBag.FileType = effectiveType;
         ViewBag.FileUrl = effectiveUrl;
         return View();
@@ -391,8 +395,12 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetTestResult(int id, string empcd)
+    public async Task<IActionResult> GetTestResult(int id, string? empcd)
     {
+        // Luôn là kết quả của CHÍNH MÌNH (bảo mật 2026-11-21): trước đây lấy empcd từ query → đổi mã là xem
+        // được bài làm/điểm của người khác. Trang TestResult vốn chỉ gửi mã của phiên.
+        empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new { success = false, message = "Chưa đăng nhập" });
         var res = await _training.GetFromApiAsync<object>($"Training/test/{id}/my-result", $"empcd={empcd}");
         return Json(res);
     }
@@ -434,8 +442,11 @@ public class TrainingController : BaseController
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetMyReview(int id, string empcd)
+    public async Task<IActionResult> GetMyReview(int id, string? empcd)
     {
+        // Chỉ đánh giá của chính mình (bảo mật 2026-11-21) — trước đây đổi empcd là đọc được góp ý của người khác.
+        empcd = CurrentUser?.EmpCd;
+        if (string.IsNullOrEmpty(empcd)) return Json(new { success = false, message = "Chưa đăng nhập" });
         var apiRes = await _training.GetFromApiAsync<GetMyReviewApiResponse>($"Training/class/{id}/my-review", $"empcd={empcd}");
         if (apiRes?.success == true && apiRes.data != null)
         {

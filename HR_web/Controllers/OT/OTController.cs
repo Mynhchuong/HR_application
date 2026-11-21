@@ -66,10 +66,17 @@ public class OTController : BaseController
     // POST: /OT/OtConfirmForm
     // ─────────────────────────────────────────────
     [HttpPost]
-    public async Task<IActionResult> OtConfirmForm(string empcd, string confirmStatus, string work_date, decimal ot_hours)
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OtConfirmForm(string? empcd, string confirmStatus, string work_date, decimal ot_hours)
     {
         try
         {
+            // Chỉ tự ký OT của CHÍNH MÌNH (bảo mật 2026-11-21): trước đây lấy empcd từ ô ẩn trong form → sửa
+            // ô đó là ký/từ chối OT thay người khác. Form vốn chỉ chứa mã của phiên nên ép lại không đổi gì.
+            empcd = CurrentUser?.EmpCd;
+            if (string.IsNullOrEmpty(empcd))
+                return Json(new { success = false, message = "Phiên đăng nhập hết hạn" });
+
             if (string.IsNullOrWhiteSpace(work_date) || !DateTime.TryParse(work_date, out _))
                 return Json(new { success = false, message = "Ngày tăng ca không hợp lệ" });
 

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
+using HR_api.Services;
 
 namespace HR_api.Controllers;
 
@@ -9,7 +10,8 @@ namespace HR_api.Controllers;
 public class MealLockController : ControllerBase
 {
     private readonly OracleService _db;
-    public MealLockController(OracleService db) { _db = db; }
+    private readonly CanteenSummaryService _sum;
+    public MealLockController(OracleService db, CanteenSummaryService sum) { _db = db; _sum = sum; }
 
     // GET /apiHR/MealLock?from=YYYY-MM-DD&to=YYYY-MM-DD
     [HttpGet]
@@ -189,6 +191,17 @@ public class MealLockController : ControllerBase
                 new OracleParameter("D", target));
 
             var row = rows.FirstOrDefault();
+
+            // Giờ chốt số lượng hằng ngày (bữa trưa) — xem CanteenSummaryService.LunchCutoffFor
+            if (mealCat != "OT" && (row == null || row.cutoffDt != null))
+            {
+                var since = await _sum.LunchLockedSinceAsync(target);
+                if (since != null)
+                    return Ok(new { success = true, locked = true,
+                        reason = $"Đã chốt số lượng suất ăn lúc {since:HH:mm dd/MM/yyyy}, không đổi món ngày này được nữa",
+                        cutoffDt = since, note = (string?)null, lockMan = false, lockNhe = false, lockChay = false, lockBanh = false });
+            }
+
             if (row == null) return Ok(new { success = true, locked = false });
 
             // Nếu rule có specify type và targetFood được truyền → chỉ chặn nếu khớp

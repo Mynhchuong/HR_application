@@ -61,6 +61,8 @@ builder.Services.AddScoped<HR_api.Helpers.GiftLogHelper>();
 builder.Services.AddScoped<HR_api.Services.GiftService>();
 builder.Services.AddScoped<HR_api.Services.AppLinkService>();
 builder.Services.AddScoped<HR_api.Services.KaizenMailService>();
+builder.Services.AddScoped<HR_api.Services.CanteenSummaryService>();
+builder.Services.AddScoped<HR_api.Services.CanteenDailyMailService>();
 builder.Services.AddScoped<HR_api.Services.InquiryReminderService>();   // email nhắc hạn phản hồi hộp thư (Phase 2)
 builder.Services.AddScoped<HR_api.Services.HomeBirthdayService>();
 builder.Services.AddScoped<HR_api.Services.HomeSummaryService>();
@@ -108,6 +110,7 @@ builder.Services.AddHostedService<HR_api.HostedServices.TrainingNotificationWork
 builder.Services.AddHostedService<HR_api.HostedServices.LeaveDocReminderService>();
 builder.Services.AddHostedService<HR_api.HostedServices.LeaveApprovalDigestService>();
 builder.Services.AddHostedService<HR_api.HostedServices.KaizenWeeklyMailService>();
+builder.Services.AddHostedService<HR_api.HostedServices.CanteenDailyMailHostedService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryReminderBackgroundService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryEmptyCleanupService>();
 builder.Services.AddHostedService<HR_api.Tpm.TpmMaintSyncService>();   // đồng bộ danh sách công nhân bảo trì từ TPM (HR_TPM_MAINT)

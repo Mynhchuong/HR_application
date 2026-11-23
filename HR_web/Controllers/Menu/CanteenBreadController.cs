@@ -217,6 +217,46 @@ public class CanteenBreadController : BaseController
         return Content(raw, "application/json");
     }
 
+    // ── Giờ chốt số lượng + email cho căn tin (yêu cầu 2026-11-23) — CHỈ Admin/HR cài đặt ──
+    public sealed class MailConfigForm { public string? SendTime { get; set; } public bool IsActive { get; set; } = true; public double? BufferPct { get; set; } }
+    public sealed class MailRecipientForm { public int Id { get; set; } public string? Email { get; set; } }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCanteenMailConfig()
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        return Content(await _svc.MailConfigRawAsync(), "application/json");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveCanteenMailConfig([FromBody] MailConfigForm f)
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        return Content(await _svc.MailPostRawAsync("config",
+            new { SEND_TIME = f?.SendTime, IS_ACTIVE = f?.IsActive ?? true, BUFFER_PCT = f?.BufferPct, LOGIN_USER = CurrentUser?.EmpCd }), "application/json");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> AddCanteenMailRecipient([FromBody] MailRecipientForm f)
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        return Content(await _svc.MailPostRawAsync("add", new { EMAIL = f?.Email, LOGIN_USER = CurrentUser?.EmpCd }), "application/json");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveCanteenMailRecipient([FromBody] MailRecipientForm f)
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        return Content(await _svc.MailPostRawAsync("remove", new { ID = f?.Id ?? 0 }), "application/json");
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> TestCanteenMail()
+    {
+        if (!CanBulkEditLog) return ForbidJson();
+        return Content(await _svc.MailPostRawAsync("test", new { LOGIN_USER = CurrentUser?.EmpCd }), "application/json");
+    }
+
     // Xoá hàng loạt bản ghi log — chọn từng dòng (Keys) hoặc "chọn tất cả khớp bộ lọc" (Filter).
     // CHỈ Admin/HR (không cho Canteen/Clerk/CSR dù họ xem được log).
     [HttpPost, ValidateAntiForgeryToken]

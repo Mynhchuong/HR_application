@@ -294,8 +294,13 @@ function buildRow(item, idx) {
 
     const isSelf    = item.EMPCD === CURRENT_EMPCD;
     const approveOk = !isSelf && canApproveRole(item.REQUESTER_ROLE);
+    // Đã qua ngày nghỉ: API không cho duyệt nữa → chỉ còn nút Từ chối
+    const isPast    = item.FROM_DATE && new Date(item.FROM_DATE).setHours(0,0,0,0) < new Date().setHours(0,0,0,0);
     const actions   = item.STATUS !== 'PENDING'
         ? '<span class="text-muted text-xs">-</span>'
+        : approveOk && isPast
+            ? `<span class="text-danger text-xxs d-inline-block lh-sm me-1"><i class="bi bi-clock-history me-1"></i>@T("Leave date")<br>@T("has passed")</span>
+               <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`
         : approveOk
             ? `<button class="btn btn-xs btn-success me-1" onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','approve')"><i class="bi bi-check-lg"></i></button>
                <button class="btn btn-xs btn-danger"  onclick="event.stopPropagation();openAction('${item.REQUEST_ID}','reject')"><i class="bi bi-x-lg"></i></button>`

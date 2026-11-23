@@ -45,8 +45,15 @@
     .sum-table td.tot { font-weight:800; color:#0f172a; }
     .sum-day { font-weight:700; color:#334155; }
     .sum-meal { font-size:.72rem; color:#64748b; display:block; }
-    .sum-leave { color:#b91c1c; }
     .sum-scroll { overflow-x:auto; }
+    .sum-toggle { cursor:pointer; }
+    .sum-toggle .sum-caret { display:inline-block; width:1rem; color:#6366f1; transition:transform .15s; }
+    .sum-toggle.open .sum-caret { transform:rotate(90deg); }
+    .sum-slot td { background:#fafbff; font-size:.78rem; color:#475569; }
+    .sum-slot td:first-child { padding-left:2rem; font-weight:600; }
+    .sum-slot.none td:first-child { color:#b45309; }
+    .cm-row { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.45rem .6rem; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:.35rem; font-size:.85rem; }
+    .cm-log td { font-size:.75rem; padding:.3rem .4rem; }
 
     @@media (max-width:576px) {
         .filter-bar { flex-wrap:wrap !important; }
@@ -109,13 +116,16 @@
 
         <div class="sum-wrap" id="sumWrap">
             <div class="sum-head">
-                <h6><i class="bi bi-calculator me-1"></i>Số suất cần nấu</h6>
-                <span class="sum-note">Bữa trưa: NV đang làm − người nghỉ (đơn đã duyệt / quản lý sắp lịch / HR nhập ERP), chưa đổi món = Mặn · Đã gồm đăng ký dài hạn · Bỏ Chủ nhật, ngày lễ</span>
+                <h6><i class="bi bi-calculator me-1"></i>Số suất cần nấu <span class="sum-note fw-normal ms-1">· bấm vào ngày để xem theo giờ nghỉ trưa</span></h6>
+@if (canBulkEdit)
+{
+                <button type="button" class="btn btn-sm btn-outline-primary mb-0 py-1" onclick="openCanteenMail()"><i class="bi bi-alarm me-1"></i>Chốt số lượng &amp; email</button>
+}
             </div>
             <div class="sum-scroll">
                 <table class="sum-table">
-                    <thead><tr><th>Ngày</th><th>🍖 Mặn</th><th>🥗 Nhẹ</th><th>🥦 Chay</th><th>🥐 Bánh</th><th>Tổng</th><th>Nghỉ (đã trừ)</th></tr></thead>
-                    <tbody id="sumBody"><tr><td colspan="7" class="cl-loading"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr></tbody>
+                    <thead><tr><th>Ngày</th><th>🍖 Mặn</th><th>🥗 Nhẹ</th><th>🥦 Chay</th><th>🥐 Bánh</th><th>Tổng</th></tr></thead>
+                    <tbody id="sumBody"><tr><td colspan="6" class="cl-loading"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr></tbody>
                 </table>
             </div>
         </div>
@@ -170,6 +180,23 @@
     </div>
 </div>
 </div>
+
+@if (canBulkEdit)
+{
+<div class="modal fade" id="cmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-alarm me-1"></i>Chốt số lượng &amp; gửi email cho căn tin</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cmBody"><div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+}
 
 @section Scripts {
 <script>
@@ -261,6 +288,16 @@ function localYmd(d = new Date()) {
 }
 
 let sumSeq = 0;
+// "1115-1215" → "11:15 – 12:15"
+function slotLabel(v) {
+    const m = /^(\d{2})(\d{2})-(\d{2})(\d{2})$/.exec(v || '');
+    return m ? `${m[1]}:${m[2]} – ${m[3]}:${m[4]}` : (v === '-' ? 'Chưa xếp ca' : esc(v || ''));
+}
+function toggleSlots(tr) {
+    tr.classList.toggle('open');
+    let n = tr.nextElementSibling;
+    while (n && n.classList.contains('sum-slot')) { n.classList.toggle('d-none'); n = n.nextElementSibling; }
+}
 async function loadSummary() {
     const from = document.getElementById('fFrom').value, to = document.getElementById('fTo').value;
     const qs = new URLSearchParams();
@@ -270,35 +307,141 @@ async function loadSummary() {
         const v = document.getElementById(id).value; if (v) qs.set(k, v);
     }
     const body = document.getElementById('sumBody');
-    body.innerHTML = '<tr><td colspan="7" class="cl-loading"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="cl-loading"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
     const my = ++sumSeq;   // bỏ kết quả cũ nếu người dùng bấm Tìm liên tục
     try {
         const res = await fetch('GetChangeLogSummary?' + qs.toString());
         const d = await res.json();
         if (my !== sumSeq) return;
-        if (!d.success) { body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${esc(d.message || 'Lỗi')}</td></tr>`; return; }
-        if (!d.data || !d.data.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">Không có dữ liệu (Chủ nhật, ngày lễ được bỏ qua)</td></tr>'; return; }
+        if (!d.success) { body.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-3">${esc(d.message || 'Lỗi')}</td></tr>`; return; }
+        if (!d.data || !d.data.length) { body.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-3">Không có dữ liệu (Chủ nhật, ngày lễ được bỏ qua)</td></tr>'; return; }
         const n = v => (v || 0).toLocaleString('vi-VN');
         const wd = ['CN','T2','T3','T4','T5','T6','T7'];
-        const tot = { lunch:{M:0,N:0,C:0,B:0,total:0}, leave:0 };
-        const row = (label, sub, m, leave, bg) => `<tr${bg ? ' style="background:#f8fafc"' : ''}>
-            <td><span class="sum-day">${label}</span><span class="sum-meal">${sub}</span></td>
-            <td>${n(m.M)}</td><td>${n(m.N)}</td><td>${n(m.C)}</td><td>${n(m.B)}</td>
-            <td class="tot">${n(m.total)}</td><td class="sum-leave">${leave == null ? '' : n(leave)}</td></tr>`;
+        const tot = { lunch:{M:0,N:0,C:0,B:0,total:0}, exp:{M:0,N:0,C:0,B:0,total:0} };
+        // Chỉ hiện số CẦN NẤU (= dự kiến thực ăn); số theo đăng ký để trong tooltip
+        const cell = (e, r, cls) => `<td${cls ? ` class="${cls}"` : ''} title="Theo đăng ký: ${n(r)}">${n(e)}</td>`;
+        const cells = (m, e) => { e = e || m; return ['M','N','C','B'].map(k => cell(e[k], m[k])).join('') + cell(e.total, m.total, 'tot'); };
+
+        const single = d.data.length === 1;   // 1 ngày → mở sẵn bảng theo giờ
         let html = '';
         for (const x of d.data) {
             const dt = new Date(+x.dat.slice(0,4), +x.dat.slice(4,6) - 1, +x.dat.slice(6,8));
-            html += row(`${wd[dt.getDay()]} ${x.dat.slice(6,8)}/${x.dat.slice(4,6)}`, '🍱 Bữa trưa', x.lunch, x.leave);
-            for (const k of ['M','N','C','B','total']) { tot.lunch[k] += x.lunch[k]; }
-            tot.leave += x.leave;
+            const hasSlots = x.slots && x.slots.length;
+            html += `<tr class="${hasSlots ? 'sum-toggle' + (single ? ' open' : '') : ''}"${hasSlots ? ' onclick="toggleSlots(this)"' : ''}>
+                <td>${hasSlots ? '<span class="sum-caret">▸</span>' : ''}<span class="sum-day">${wd[dt.getDay()]} ${x.dat.slice(6,8)}/${x.dat.slice(4,6)}</span><span class="sum-meal">🍱 Bữa trưa${x.special ? ' · <b class="text-warning" title="Thực đơn có CA 2 ĐẶC BIỆT — đã tính theo số người đi ăn các ngày đặc biệt trước">⭐ Ngày đặc biệt</b>' : ''}</span></td>
+                ${cells(x.lunch, x.expected)}</tr>`;
+            for (const sl of (x.slots || [])) {
+                html += `<tr class="sum-slot${sl.slot === '-' ? ' none' : ''}${single ? '' : ' d-none'}">
+                    <td>🕐 ${slotLabel(sl.slot)}</td>${cells(sl.count, sl.expected)}</tr>`;
+            }
+            for (const k of ['M','N','C','B','total']) { tot.lunch[k] += x.lunch[k]; tot.exp[k] += (x.expected || x.lunch)[k]; }
         }
         if (d.data.length > 1) {
-            html += row('Cộng', '🍱 Bữa trưa', tot.lunch, tot.leave, true);
+            html += `<tr style="background:#f8fafc"><td><span class="sum-day">Cộng</span><span class="sum-meal">🍱 Bữa trưa</span></td>
+                ${cells(tot.lunch, tot.exp)}</tr>`;
         }
         body.innerHTML = html;
     } catch {
-        if (my === sumSeq) body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">Lỗi kết nối</td></tr>';
+        if (my === sumSeq) body.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Lỗi kết nối</td></tr>';
     }
+}
+
+@if (canBulkEdit)
+{
+<text>
+// ── Chốt số lượng + email cho căn tin (Admin/HR) ──
+const CM_URL = {
+    get:  '@Url.Action("GetCanteenMailConfig", "CanteenBread")',
+    save: '@Url.Action("SaveCanteenMailConfig", "CanteenBread")',
+    add:  '@Url.Action("AddCanteenMailRecipient", "CanteenBread")',
+    del:  '@Url.Action("RemoveCanteenMailRecipient", "CanteenBread")',
+    test: '@Url.Action("TestCanteenMail", "CanteenBread")'
+};
+async function cmPost(url, body) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': AF_TOKEN }, body: JSON.stringify(body || {}) });
+    return res.json();
+}
+function cmDate(s, withTime) {
+    const d = new Date(s); if (isNaN(d)) return '';
+    const p = v => String(v).padStart(2, '0');
+    const wd = ['CN','T2','T3','T4','T5','T6','T7'];
+    return (withTime ? `${p(d.getHours())}:${p(d.getMinutes())} ` : '') + `${wd[d.getDay()]} ${p(d.getDate())}/${p(d.getMonth() + 1)}`;
+}
+function openCanteenMail() {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('cmModal')).show();
+    cmLoad();
+}
+async function cmLoad() {
+    const box = document.getElementById('cmBody');
+    try {
+        const d = await (await fetch(CM_URL.get)).json();
+        if (!d.success) { box.innerHTML = `<div class="alert alert-warning text-sm mb-0">${esc(d.message || 'Lỗi')}</div>`; return; }
+        const st = { OK: '<span class="badge bg-success">Đã gửi</span>', FAIL: '<span class="badge bg-danger">Lỗi</span>', TEST: '<span class="badge bg-secondary">Gửi thử</span>' };
+        const n = v => v == null ? '' : v.toLocaleString('vi-VN');
+        box.innerHTML = `
+            <div class="d-flex align-items-end gap-2 flex-wrap mb-2">
+                <div><label class="form-label text-xs mb-1">Giờ chốt hằng ngày</label>
+                     <input type="time" id="cmTime" class="form-control form-control-sm" value="${esc(d.sendTime)}" style="width:120px"></div>
+                <div><label class="form-label text-xs mb-1">% dự phòng</label>
+                     <div class="input-group input-group-sm" style="width:110px"><input type="number" id="cmBuffer" class="form-control" min="0" max="20" step="0.5" value="${d.bufferPct}"><span class="input-group-text">%</span></div></div>
+                <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="cmActive" ${d.isActive ? 'checked' : ''}>
+                     <label class="form-check-label text-sm" for="cmActive">Bật</label></div>
+                <button type="button" class="btn btn-sm btn-primary mb-0" onclick="cmSave()">Lưu</button>
+            </div>
+            <div class="text-xs text-secondary mb-3">
+                Tới giờ chốt: gửi email số suất ăn trưa của <b>ngày làm việc kế tiếp</b> (bỏ Chủ nhật, ngày lễ) theo giờ nghỉ trưa,
+                và <b>khoá đổi món</b> bữa trưa ngày đó.<br>
+                % dự phòng cộng thêm vào số cần nấu để không bị thiếu: 3% = không ngày nào thiếu (đối chiếu 67 ngày, dư trung bình ~190 suất); giảm xuống thì bớt dư nhưng có ngày thiếu.<br>
+                ${d.isActive ? `Lần chốt tới: <b>${cmDate(d.nextSend, true)}</b> → số của <b>${cmDate(d.nextTarget)}</b>` : '<span class="text-danger">Đang tắt — không gửi email, không khoá đổi món.</span>'}
+            </div>
+            <label class="form-label text-xs mb-1">Email nhận (${d.recipients.length}/${d.max})</label>
+            <div id="cmList">${d.recipients.map(x => `<div class="cm-row"><span>${esc(x.email)}</span>
+                <button type="button" class="btn btn-link text-danger p-0 mb-0" onclick="cmRemove(${x.id})" aria-label="Xoá"><i class="bi bi-trash"></i></button></div>`).join('')
+                || '<div class="text-xs text-secondary mb-2">Chưa có email nào — chưa gửi được.</div>'}</div>
+            <div class="input-group input-group-sm mb-2">
+                <input type="email" id="cmEmail" class="form-control" placeholder="email@esamho.com" onkeydown="if(event.key==='Enter'){event.preventDefault();cmAdd();}">
+                <button type="button" class="btn btn-outline-primary mb-0" onclick="cmAdd()">Thêm</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="cmTest(this)" ${d.recipients.length ? '' : 'disabled'}>
+                <i class="bi bi-send me-1"></i>Gửi thử ngay (số ${cmDate(d.nextTarget)})</button>
+            ${d.logs.length ? `<label class="form-label text-xs mb-1">Lần gửi gần nhất</label>
+            <table class="table table-sm cm-log mb-0"><tbody>${d.logs.map(l => `<tr>
+                <td>${cmDate(l.sentDt, true)}</td><td>số ${cmDate(l.targetDat)}</td>
+                <td>${st[l.status] || esc(l.status)}</td><td class="text-end">${l.totalExp != null ? n(l.totalExp) + ' suất' : ''}</td>
+                </tr>${l.err ? `<tr><td colspan="4" class="text-danger">${esc(l.err)}</td></tr>` : ''}`).join('')}</tbody></table>` : ''}`;
+    } catch { box.innerHTML = '<div class="alert alert-danger text-sm mb-0">Lỗi kết nối</div>'; }
+}
+async function cmSave() {
+    const buf = parseFloat(document.getElementById('cmBuffer').value);
+    if (isNaN(buf) || buf < 0 || buf > 20) { showToast('% dự phòng phải từ 0 đến 20', 'error'); return; }
+    const d = await cmPost(CM_URL.save, { sendTime: document.getElementById('cmTime').value, isActive: document.getElementById('cmActive').checked,
+                                          bufferPct: buf });
+    showToast(d.success ? 'Đã lưu giờ chốt' : (d.message || 'Lưu thất bại'), d.success ? 'success' : 'error');
+    if (d.success) cmLoad();
+}
+async function cmAdd() {
+    const email = document.getElementById('cmEmail').value.trim();
+    if (!email) return;
+    const d = await cmPost(CM_URL.add, { email });
+    if (!d.success) { showToast(d.message || 'Thêm thất bại', 'error'); return; }
+    cmLoad();
+}
+async function cmRemove(id) {
+    const d = await cmPost(CM_URL.del, { id });
+    if (!d.success) { showToast(d.message || 'Xoá thất bại', 'error'); return; }
+    cmLoad();
+}
+async function cmTest(btn) {
+    btn.disabled = true;
+    const old = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang gửi...';
+    try {
+        const d = await cmPost(CM_URL.test, {});
+        showToast(d.message || (d.success ? 'Đã gửi' : 'Gửi thất bại'), d.success ? 'success' : 'error');
+        cmLoad();
+    } catch { showToast('Lỗi kết nối', 'error'); btn.disabled = false; btn.innerHTML = old; }
+}
+</text>
 }
 
 async function doSearch(page = 1) {

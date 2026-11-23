@@ -93,6 +93,15 @@
     .tw-day.off { opacity: .45; }
     .tw-day .lk { position: absolute; top: -6px; right: -4px; }
     .tw-day .lk .ic3d { width: 1.1em; height: 1.1em; }
+    .tw-day .veg { font-size: .6rem; font-weight: 800; color: #15803d; white-space: nowrap; }
+    .tw-day.vegday:not(.active) { border-color: #86efac; background: #f0fdf4; }
+    .tw-day.active .veg { color: #fff; }
+    .tw-veg { display: flex; align-items: center; gap: .6rem; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px;
+              padding: .55rem .75rem; margin-bottom: .6rem; color: #14532d; font-size: .82rem; font-weight: 700; line-height: 1.45; }
+    .tw-veg .moon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; }
+    .tw-veg small { display: block; font-weight: 600; color: #166534; font-size: .76rem; }
+    .tw-veg a { flex-shrink: 0; margin-left: auto; background: #16a34a; color: #fff !important; font-weight: 800; font-size: .8rem;
+                padding: .4rem .7rem; border-radius: 10px; text-decoration: none !important; }
 
     .tw-mine { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .75rem; border-radius: 999px; font-size: .8rem; font-weight: 800; margin-bottom: .6rem; }
     .tw-mine .ic3d { width: 1.2em; height: 1.2em; }
@@ -201,11 +210,16 @@
                 var tabDate  = dayDates.GetValueOrDefault(dayNo, "");
                 var dt       = monday.AddDays(dayNo - 2);
                 userWeekMeals.TryGetValue(tabDate, out var tabMeal);
-                <div class="tw-day day-tab @(hasData ? "" : "off") @(dayNo == todayNo ? "today" : "")"
+                var tabLunar = HR_web.Helpers.LunarCalendar.FromSolar(dt);
+                <div class="tw-day day-tab @(hasData ? "" : "off") @(dayNo == todayNo ? "today" : "") @(tabLunar.IsVegDay ? "vegday" : "")"
                      data-day="@dayNo" data-date="@tabDate" onclick="switchDay(@dayNo)">
                     <span class="lk day-lock-ico" data-lock-day="@dayNo" style="display:none">@Html.Icon3D("meal-locked")</span>
                     <b>@dayName.Replace("Thứ ", "T")</b>
                     <small>@dt.ToString("dd/MM")</small>
+                    @if (tabLunar.IsVegDay)
+                    {
+                        <span class="veg">@tabLunar.Moon @tabLunar.VegShort</span>
+                    }
                     @if (hasData && !string.IsNullOrEmpty(tabMeal) && mealBadge.ContainsKey(tabMeal))
                     {
                         var tc = mealBadge[tabMeal];
@@ -234,6 +248,31 @@
             var dayDateKey = dayDates.GetValueOrDefault(dayNo, "");
             <div class="day-content" id="day-@dayNo" data-date="@dayDateKey">
                 <div class="lock-banner" data-lock-content="@dayNo" style="display:none;"></div>
+                @{
+                    var cDate  = monday.AddDays(dayNo - 2);
+                    var cLunar = HR_web.Helpers.LunarCalendar.FromSolar(cDate);
+                    userWeekMeals.TryGetValue(dayDateKey, out var cMeal);
+                }
+                @if (cLunar.IsVegDay && dayItems.Any())
+                {
+                    <div class="tw-veg">
+                        <span class="moon">@cLunar.Moon</span>
+                        <span>@dayName @cDate.ToString("dd/MM") là <b>@cLunar.VegName âm lịch</b> (@cLunar.Text)
+                            @if (cMeal == "C")
+                            {
+                                <small>Bạn đã đăng ký món Chay ngày này.</small>
+                            }
+                            else if (cDate > today)
+                            {
+                                <small>Ai ăn chay nhớ đổi sang món Chay trước giờ chốt tối hôm trước.</small>
+                            }
+                        </span>
+                        @if (User.Identity?.IsAuthenticated == true && cMeal != "C" && cDate > today)
+                        {
+                            <a href="@Url.Action("ChangeMeal")">Đổi món</a>
+                        }
+                    </div>
+                }
                 @if (!dayItems.Any())
                 {
                     <div class="tp-empty">@Html.Icon3D("leave-today")<p>Ngày nghỉ — không có thực đơn</p></div>
@@ -380,7 +419,7 @@ function applyLockToDay(dayNo, isoDate, lockInfo) {
                 : '';
             banner.style.display = '';
             banner.innerHTML = `<div class="tw-lock" style="background:#fef2f2;color:#b91c1c;">
-                    ${window.ic3d('meal-locked')} Ngày <b>${dLabel}</b> đã khoá đổi món (sự kiện đặc biệt).${noteLine}</div>`;
+                    ${window.ic3d('meal-locked')} Ngày <b>${dLabel}</b>: ${escTxt(lockInfo.reason || 'đã khoá đổi món')}.${noteLine}</div>`;
         }
     } else if (lockInfo.reason && lockInfo.cutoffDt) {
         if (banner) {

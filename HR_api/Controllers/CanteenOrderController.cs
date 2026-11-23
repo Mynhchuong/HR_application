@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
+using HR_api.Services;
 
 namespace HR_api.Controllers;
 
@@ -9,8 +10,9 @@ namespace HR_api.Controllers;
 public class CanteenOrderController : ControllerBase
 {
     private readonly OracleService _db;
+    private readonly CanteenSummaryService _sum;
 
-    public CanteenOrderController(OracleService db) { _db = db; }
+    public CanteenOrderController(OracleService db, CanteenSummaryService sum) { _db = db; _sum = sum; }
 
     // GET /apiHR/CanteenOrder/today?empcd=xxx&date=20260618&typeMeal=LUNCH
     [HttpGet("today")]
@@ -197,6 +199,11 @@ public class CanteenOrderController : ControllerBase
                 new OracleParameter("DF", from.Date),
                 new OracleParameter("DT", to.Date));
 
+            // Giờ chốt số lượng hằng ngày (HR đặt, mặc định 21:00): đã gửi số cho căn tin thì khoá đổi món bữa trưa
+            // của ngày đó (yêu cầu 2026-11-23). Chưa chạy script / HR tắt → cutoffCfg null hoặc !Active, không khoá.
+            var cutoffCfg = await _sum.GetCutoffConfigAsync();
+            var cutoffHol = cutoffCfg?.Active == true ? await _sum.GetHolidaysAsync(from.AddDays(-CanteenSummaryService.HolidayLookbackDays), to) : new HashSet<DateTime>();
+
             // -- VALIDATE BÁNH (chỉ LUNCH, không long-term) --
             if (typeDb == "B" && mealCat == "LUNCH" && !isLongTerm)
             {
@@ -370,6 +377,12 @@ public class CanteenOrderController : ControllerBase
 
             bool IsBlocked(DateTime day, string mealCat, string targetFood)
             {
+                if (mealCat != "OT" && cutoffCfg != null)
+                {
+                    var cut = CanteenSummaryService.LunchCutoffFor(day, cutoffCfg, cutoffHol);
+                    if (cut != null && DateTime.Now >= cut) return true;
+                }
+
                 // Lọc rule áp dụng cho (day + mealCat)
                 var applicable = locks.Where(l => l.date == day.Date
                     && ((mealCat == "OT" && l.ot) || (mealCat != "OT" && l.lunch)));

@@ -140,6 +140,23 @@ public class CanteenBreadService
             : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
     }
 
+    // ── Giờ chốt + email số suất hằng ngày cho căn tin — xem HR_api CanteenBreadController mail/* ──
+    public async Task<string> MailConfigRawAsync()
+    {
+        var res = await _api.GetAsync_Raw("CanteenBread/mail/config", "");
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
+
+    public async Task<string> MailPostRawAsync(string action, object body)
+    {
+        var res = await _api.PostAsync("CanteenBread/mail/" + action, body);
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
+
     // Lấy TOÀN BỘ log (không phân trang) — dùng cho Xuất Excel, cùng bộ filter với GetChangeLog.
     // pageSize lớn để lấy 1 lần thay vì loop nhiều trang.
     public async Task<List<ChangeLogRow>> OrderViewAllAsync(

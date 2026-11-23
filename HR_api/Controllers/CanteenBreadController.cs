@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Oracle.ManagedDataAccess.Client;
 using HR_api.Data;
 using HR_api.Helpers;
+using HR_api.Services;
 
 namespace HR_api.Controllers;
 
@@ -10,7 +11,12 @@ namespace HR_api.Controllers;
 public class CanteenBreadController : ControllerBase
 {
     private readonly OracleService _db;
-    public CanteenBreadController(OracleService db) { _db = db; }
+    private readonly CanteenSummaryService _sum;
+    private readonly CanteenDailyMailService _mail;
+    public CanteenBreadController(OracleService db, CanteenSummaryService sum, CanteenDailyMailService mail)
+    {
+        _db = db; _sum = sum; _mail = mail;
+    }
 
     // GET /apiHR/CanteenBread/quota-list
     [HttpGet("quota-list")]
@@ -507,13 +513,8 @@ public class CanteenBreadController : ControllerBase
     }
 
     // GET /apiHR/CanteenBread/order-summary?from=&to=&deptcd=&linecd=&workcd=&clerkEmpcd=
-    // Số suất cần nấu theo từng món, từng ngày — căn tin dùng để chốt số lượng (yêu cầu 2026-11-23).
-    //   Bữa trưa: mọi NV đang làm (chưa nghỉ việc tới ngày đó), TRỪ người nghỉ ngày đó: đơn nghỉ trên app đã
-    //             duyệt (APPROVED) hoặc được quản lý sắp lịch (ASSIGNED), cộng ngày nghỉ HR nhập thẳng ERP (EFM410).
-    //             Không dùng riêng EFM410 vì đơn ngày tương lai chưa có trong ERP (24/11: ERP 4 người, app ~98). Món = dòng LUNCH trong CANTEEN_ORDER,
-    //             không có = Mặn (mặc định). Đăng ký dài hạn đã được ghi sẵn từng ngày nên tự được tính.
-    //   Tăng ca : NV có OT đã xác nhận ngày đó (HR_OT_REQUEST), cũng trừ người nghỉ. Món = dòng OT, không có = Mặn.
-    //   Bỏ Chủ nhật và ngày lễ công ty (EAM800 — ERP không ghi ngày nghỉ vào ngày lễ). Tối đa 31 ngày/lần.
+    // Số suất cần nấu theo món / giờ nghỉ trưa, từng ngày — cách tính xem Services/CanteenSummaryService.cs.
+    // Mỗi ngày + mỗi khung giờ có thêm "expected" = dự kiến thực ăn (đăng ký × tỉ lệ ăn thật ~2 tuần gần nhất).
     [HttpGet("order-summary")]
     public async Task<IActionResult> OrderSummary(
         [FromQuery] string? from, [FromQuery] string? to,
@@ -528,103 +529,144 @@ public class CanteenBreadController : ControllerBase
             if ((dt - df).TotalDays > 30)
                 return Ok(new { success = false, message = "Tổng hợp tối đa 31 ngày, vui lòng thu hẹp khoảng ngày." });
 
-            var empWhere = new List<string> { "ec.JEAJIKGB = 'Y'" };
-            var ps = new List<OracleParameter>();
-            if (!string.IsNullOrEmpty(deptcd)) { empWhere.Add("ec.DEPTCD = :DEPTCD"); ps.Add(new OracleParameter("DEPTCD", deptcd)); }
-            if (!string.IsNullOrEmpty(linecd)) { empWhere.Add("ec.LINECD = :LINECD"); ps.Add(new OracleParameter("LINECD", linecd)); }
-            if (!string.IsNullOrEmpty(workcd)) { empWhere.Add("ec.WORKCD = :WORKCD"); ps.Add(new OracleParameter("WORKCD", workcd)); }
-            string scopeSql = "";
-            if (!string.IsNullOrEmpty(clerkEmpcd))
-            {
-                var sc = OTScopeFilterHelper.ForScopeByTuple(clerkEmpcd, empAlias: "ec", prefix: "CK");
-                scopeSql = sc.SqlClause;
-                ps.AddRange(sc.Params);
-            }
-
-            var sql = $@"
-                WITH D AS (
-                    SELECT DD, TO_CHAR(DD,'YYYYMMDD') DAT FROM (
-                        SELECT :DF + LEVEL - 1 DD FROM DUAL CONNECT BY LEVEL <= :NDAYS)
-                    WHERE TO_CHAR(DD,'DY','NLS_DATE_LANGUAGE=AMERICAN') <> 'SUN'
-                      AND NOT EXISTS (SELECT 1 FROM HRMS.EAM800 h WHERE TRUNC(h.HUILDAY) = DD)
-                ),
-                EMP AS (
-                    SELECT ec.EMPCD, ec.RETDAT FROM HRMS.ECM100 ec
-                    WHERE {string.Join(" AND ", empWhere)} {scopeSql}
-                ),
-                LV AS (
-                    SELECT x.EMPCD, x.FR_DAT FROM HRMS.EFM410 x
-                    WHERE x.FR_DAT BETWEEN :DF2 AND :DT2
-                    UNION
-                    SELECT l.EMPCD, d.DD FROM D d
-                    JOIN HRMS.HR_LEAVE_REQUEST l ON d.DD BETWEEN TRUNC(l.FROM_DATE) AND TRUNC(l.TO_DATE)
-                    JOIN HRMS.HR_REQUEST r ON r.REQUEST_ID = l.REQUEST_ID
-                    WHERE r.STATUS IN ('APPROVED','ASSIGNED')
-                      AND l.FROM_DATE <= :DT4 + 1 AND l.TO_DATE >= :DF4
-                ),
-                CO AS (
-                    SELECT co.EMPCD, co.DAT, co.TYPE_MEAL, co.TYPE_OF_FOOD FROM HRMS.CANTEEN_ORDER co
-                    WHERE co.DAT BETWEEN :DFS AND :DTS
-                ),
-                OT AS (
-                    SELECT DISTINCT o.EMPCD, o.WORK_DATE FROM HRMS.HR_OT_REQUEST o
-                    WHERE o.WORK_DATE BETWEEN :DF3 AND :DT3 AND o.CONFIRM_STATUS = 'CONFIRMED'
-                )
-                SELECT DAT, MEAL, FOOD, COUNT(*) CNT FROM (
-                    SELECT d.DAT, 'LUNCH' MEAL, NVL(c.TYPE_OF_FOOD,'M') FOOD
-                    FROM D d CROSS JOIN EMP e
-                    LEFT JOIN CO c ON c.EMPCD = e.EMPCD AND c.DAT = d.DAT AND c.TYPE_MEAL = 'LUNCH'
-                    LEFT JOIN LV l ON l.EMPCD = e.EMPCD AND l.FR_DAT = d.DD
-                    WHERE (e.RETDAT IS NULL OR e.RETDAT > d.DAT) AND l.EMPCD IS NULL
-                    UNION ALL
-                    SELECT d.DAT, 'OT', NVL(c.TYPE_OF_FOOD,'M')
-                    FROM D d JOIN OT o ON o.WORK_DATE = d.DD
-                    JOIN EMP e ON e.EMPCD = o.EMPCD
-                    LEFT JOIN CO c ON c.EMPCD = e.EMPCD AND c.DAT = d.DAT AND c.TYPE_MEAL = 'OT'
-                    LEFT JOIN LV l ON l.EMPCD = e.EMPCD AND l.FR_DAT = d.DD
-                    WHERE l.EMPCD IS NULL
-                    UNION ALL
-                    -- Số người nghỉ (đã trừ) để căn tin đối chiếu
-                    SELECT d.DAT, 'LEAVE', '-'
-                    FROM D d JOIN LV l ON l.FR_DAT = d.DD
-                    JOIN EMP e ON e.EMPCD = l.EMPCD
-                    WHERE (e.RETDAT IS NULL OR e.RETDAT > d.DAT)
-                ) GROUP BY DAT, MEAL, FOOD";
-
-            OracleParameter Dp(string n, DateTime v) => new OracleParameter { ParameterName = n, OracleDbType = OracleDbType.Date, Value = v };
-            ps.Add(Dp("DF", df));
-            ps.Add(new OracleParameter("NDAYS", (int)(dt - df).TotalDays + 1));
-            ps.Add(Dp("DF2", df)); ps.Add(Dp("DT2", dt));
-            ps.Add(new OracleParameter("DFS", df.ToString("yyyyMMdd"))); ps.Add(new OracleParameter("DTS", dt.ToString("yyyyMMdd")));
-            ps.Add(Dp("DF3", df)); ps.Add(Dp("DT3", dt));
-            ps.Add(Dp("DF4", df)); ps.Add(Dp("DT4", dt));
-
-            var rows = await _db.ExecuteQueryAsync(sql,
-                r => (Dat: r["DAT"]?.ToString() ?? "", Meal: r["MEAL"]?.ToString() ?? "", Food: r["FOOD"]?.ToString() ?? "",
-                      Cnt: Convert.ToInt32(r["CNT"])),
-                ps.ToArray());
-
-            var days = rows.GroupBy(x => x.Dat).OrderBy(g => g.Key).Select(g =>
-            {
-                object Meal(string meal)
-                {
-                    var m = g.Where(x => x.Meal == meal).ToList();
-                    int C(string food) => m.Where(x => x.Food == food).Sum(x => x.Cnt);
-                    return new { M = C("M"), N = C("N"), C = C("C"), B = C("B"), total = m.Sum(x => x.Cnt) };
-                }
-                return new
-                {
-                    dat   = g.Key,
-                    lunch = Meal("LUNCH"),
-                    ot    = Meal("OT"),
-                    leave = g.Where(x => x.Meal == "LEAVE").Sum(x => x.Cnt)
-                };
-            }).ToList();
-
-            return Ok(new { success = true, data = days });
+            var days = await _sum.GetAsync(df, dt, deptcd, linecd, workcd, clerkEmpcd);
+            var ratio = await _sum.GetEatRatioAsync();
+            var buffer = await _sum.GetBufferPctAsync();
+            CanteenSummaryService.ApplyExpected(days, ratio, await _sum.GetSpecialDaysAsync(df, dt), buffer);
+            return Ok(new { success = true, data = days, ratio, buffer });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }
+
+    // ── Giờ chốt + email số suất hằng ngày cho căn tin (yêu cầu 2026-11-23) ─────────────────────────
+    private static readonly System.Text.RegularExpressions.Regex EmailRx =
+        new(@"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private const string NotReadyMsg = "Chức năng chốt số lượng chưa được bật trên hệ thống (chưa chạy script tạo bảng)";
+
+    // GET /apiHR/CanteenBread/mail/config -> giờ chốt, bật/tắt, người nhận, ngày sẽ báo kế tiếp, vài lần gửi gần nhất
+    [HttpGet("mail/config")]
+    public async Task<IActionResult> MailConfig()
+    {
+        try
+        {
+            var cfg = await _sum.GetCutoffConfigAsync();
+            if (cfg == null) return Ok(new { success = false, available = false, message = NotReadyMsg });
+            var recipients = (await _mail.GetRecipientsAsync()).Select(x => new { id = x.Id, email = x.Email }).ToList();
+            var now = DateTime.Now;
+            var cutToday = now.Date.AddHours(cfg.Hour).AddMinutes(cfg.Minute);
+            var target = await _mail.TargetDateAsync(now);
+            var logs = await _db.ExecuteQueryAsync(@"
+                SELECT * FROM (SELECT TARGET_DAT, SENT_DT, STATUS, TOTAL_REG, TOTAL_EXP, ERR, SENT_BY
+                                 FROM HRMS.HR_CANTEEN_MAIL_LOG ORDER BY SENT_DT DESC, ID DESC) WHERE ROWNUM <= 7",
+                r => new
+                {
+                    targetDat = Convert.ToDateTime(r["TARGET_DAT"]),
+                    sentDt = Convert.ToDateTime(r["SENT_DT"]),
+                    status = r["STATUS"]?.ToString(),
+                    totalReg = r["TOTAL_REG"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["TOTAL_REG"]),
+                    totalExp = r["TOTAL_EXP"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["TOTAL_EXP"]),
+                    err = r["ERR"]?.ToString(),
+                    sentBy = r["SENT_BY"]?.ToString()
+                });
+            return Ok(new
+            {
+                success = true, available = true,
+                sendTime = cfg.Time, isActive = cfg.Active, bufferPct = cfg.BufferPct,
+                recipients, max = CanteenDailyMailService.MaxRecipients,
+                nextSend = now < cutToday ? cutToday : cutToday.AddDays(1),
+                nextTarget = target, logs
+            });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/CanteenBread/mail/config { SEND_TIME:"21:00", IS_ACTIVE:true, LOGIN_USER }
+    [HttpPost("mail/config")]
+    public async Task<IActionResult> MailConfigSave([FromBody] CanteenMailConfigBody body)
+    {
+        try
+        {
+            if (!await _sum.TablesReadyAsync()) return Ok(new { success = false, message = NotReadyMsg });
+            if (!CanteenSummaryService.TryParseTime(body?.SEND_TIME, out var h, out var m))
+                return Ok(new { success = false, message = "Giờ chốt không hợp lệ (HH:mm)" });
+            var buf = body!.BUFFER_PCT ?? CanteenSummaryService.DefaultBufferPct;
+            if (buf < 0 || buf > 20)
+                return Ok(new { success = false, message = "% dự phòng phải từ 0 đến 20" });
+            await _db.ExecuteNonQueryAsync(@"
+                UPDATE HRMS.HR_CANTEEN_MAIL_CFG SET SEND_TIME = :T, IS_ACTIVE = :A, BUFFER_PCT = :B, UPDT_ID = :U, UPDT_DT = SYSDATE WHERE ID = 1",
+                new OracleParameter("T", $"{h:D2}:{m:D2}"),
+                new OracleParameter("A", body.IS_ACTIVE ? "Y" : "N"),
+                new OracleParameter("B", Math.Round(buf, 1)),
+                new OracleParameter("U", (object?)body.LOGIN_USER ?? DBNull.Value));
+            return Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/CanteenBread/mail/add { EMAIL, LOGIN_USER }
+    [HttpPost("mail/add")]
+    public async Task<IActionResult> MailAdd([FromBody] CanteenMailRecipientBody req)
+    {
+        try
+        {
+            if (!await _sum.TablesReadyAsync()) return Ok(new { success = false, message = NotReadyMsg });
+            var email = (req?.EMAIL ?? "").Trim().ToLowerInvariant();
+            if (email.Length == 0 || email.Length > 200 || !EmailRx.IsMatch(email))
+                return Ok(new { success = false, message = "Địa chỉ email không hợp lệ" });
+            var all = await _mail.GetRecipientsAsync();
+            if (all.Any(x => string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase)))
+                return Ok(new { success = false, message = "Email này đã có trong danh sách" });
+            if (all.Count >= CanteenDailyMailService.MaxRecipients)
+                return Ok(new { success = false, message = $"Tối đa {CanteenDailyMailService.MaxRecipients} email nhận" });
+            await _db.ExecuteNonQueryAsync("INSERT INTO HRMS.HR_CANTEEN_MAIL_TO (EMAIL, INST_ID, INST_DT) VALUES (:E, :U, SYSDATE)",
+                new OracleParameter("E", email),
+                new OracleParameter("U", (object?)req?.LOGIN_USER ?? DBNull.Value));
+            return Ok(new { success = true });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/CanteenBread/mail/remove { ID }
+    [HttpPost("mail/remove")]
+    public async Task<IActionResult> MailRemove([FromBody] CanteenMailRecipientBody req)
+    {
+        try
+        {
+            if (!await _sum.TablesReadyAsync()) return Ok(new { success = false, message = NotReadyMsg });
+            var n = await _db.ExecuteNonQueryAsync("DELETE FROM HRMS.HR_CANTEEN_MAIL_TO WHERE ID = :I", new OracleParameter("I", req?.ID ?? 0));
+            return Ok(new { success = n > 0 });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // POST /apiHR/CanteenBread/mail/test { LOGIN_USER } — gửi ngay số của ngày làm việc kế tiếp tới cả danh sách
+    // (log TEST, không tính là đã gửi nên tới giờ chốt vẫn gửi bản chính thức)
+    [HttpPost("mail/test")]
+    public async Task<IActionResult> MailTest([FromBody] CanteenMailRecipientBody req)
+    {
+        try
+        {
+            if (!await _sum.TablesReadyAsync()) return Ok(new { success = false, message = NotReadyMsg });
+            var (ok, msg) = await _mail.SendTestAsync(req?.LOGIN_USER);
+            return Ok(new { success = ok, message = msg });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+}
+
+public class CanteenMailConfigBody
+{
+    public string? SEND_TIME  { get; set; }
+    public bool    IS_ACTIVE  { get; set; } = true;
+    public double? BUFFER_PCT { get; set; }
+    public string? LOGIN_USER { get; set; }
+}
+
+public class CanteenMailRecipientBody
+{
+    public int     ID         { get; set; }
+    public string? EMAIL      { get; set; }
+    public string? LOGIN_USER { get; set; }
 }
 
 public class BreadQuotaItem

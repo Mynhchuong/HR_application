@@ -61,6 +61,11 @@
         { "MAN","meal-main" }, { "DU_KIEN","survey" }, { "NHE","meal-light" }, { "CHAY","meal-veg" }, { "BANH","meal-bread" }
     };
     bool isEmpty = !Model.Any();
+
+    // Âm lịch: nhắc người ăn chay (mùng 1, 14, rằm, cuối tháng) — chốt đổi món là tối HÔM TRƯỚC nên nhắc từ hôm trước
+    var lunarToday = HR_web.Helpers.LunarCalendar.FromSolar(today);
+    var nextDay    = today.AddDays(today.DayOfWeek == DayOfWeek.Saturday ? 2 : 1);   // CN căn tin nghỉ → nhắc cho thứ Hai
+    var lunarNext  = HR_web.Helpers.LunarCalendar.FromSolar(nextDay);
 }
 
 <style>
@@ -73,6 +78,14 @@
     .tp-top { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin: .25rem 0 .75rem; }
     .tp-date b { display: block; font-size: 1.25rem; font-weight: 900; color: #0f172a; line-height: 1.2; }
     .tp-date span { font-size: .8rem; color: #64748b; font-weight: 600; }
+    .tp-date .lunar { display: block; font-size: .74rem; color: #a16207; font-weight: 700; }
+    /* Nhắc ngày chay âm lịch */
+    .tp-veg { display: flex; align-items: center; gap: .65rem; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 14px;
+              padding: .65rem .85rem; margin-bottom: .75rem; color: #14532d; font-size: .85rem; font-weight: 700; line-height: 1.45; }
+    .tp-veg .moon { font-size: 1.6rem; line-height: 1; flex-shrink: 0; }
+    .tp-veg small { display: block; font-weight: 600; color: #166534; font-size: .78rem; }
+    .tp-veg a { flex-shrink: 0; margin-left: auto; background: #16a34a; color: #fff !important; font-weight: 800; font-size: .82rem;
+                padding: .45rem .75rem; border-radius: 10px; text-decoration: none !important; }
     .tp-tabs { display: flex; background: #f1f5f9; border-radius: 12px; padding: 3px; gap: 3px; flex-shrink: 0; }
     .tp-tab { padding: 7px 14px; border-radius: 9px; font-size: .85rem; font-weight: 800; color: #64748b; text-decoration: none !important; }
     .tp-tab.active { background: #fff; color: #dc2626; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
@@ -180,12 +193,33 @@
 <div class="tp px-2 py-2">
     <!-- Ngày + chuyển Hôm nay / Cả tuần -->
     <div class="tp-top">
-        <div class="tp-date"><b>@todayLabel</b><span>@today.ToString("dd/MM/yyyy")</span></div>
+        <div class="tp-date"><b>@todayLabel</b><span>@today.ToString("dd/MM/yyyy")</span><span class="lunar">Âm lịch @lunarToday.Text</span></div>
         <div class="tp-tabs">
             <span class="tp-tab active">Hôm nay</span>
             <a href="@Url.Action("ThisWeek")" class="tp-tab">Cả tuần</a>
         </div>
     </div>
+
+    <!-- Nhắc ngày chay âm lịch -->
+    @if (lunarNext.IsVegDay)
+    {
+        <div class="tp-veg">
+            <span class="moon">@lunarNext.Moon</span>
+            <span>@(nextDay == today.AddDays(1) ? "Ngày mai" : dayNames[nextDay.DayOfWeek]) (@nextDay.ToString("dd/MM")) là <b>@lunarNext.VegName âm lịch</b> (@lunarNext.Text)
+                <small>Ai ăn chay nhớ đổi sang món Chay trước giờ chốt tối nay.</small></span>
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a href="@Url.Action("ChangeMeal")">Đổi món</a>
+            }
+        </div>
+    }
+    else if (lunarToday.IsVegDay)
+    {
+        <div class="tp-veg">
+            <span class="moon">@lunarToday.Moon</span>
+            <span>Hôm nay là <b>@lunarToday.VegName âm lịch</b> (@lunarToday.Text)</span>
+        </div>
+    }
 
     <!-- Suất ăn của bạn + trạng thái khoá đổi món -->
     @if (userMeals != null && userMeals.Any())

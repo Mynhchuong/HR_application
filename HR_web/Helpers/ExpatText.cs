@@ -619,6 +619,8 @@ public static class ExpatText
         ["approval"] = "승인 필요",
         ["Higher level"] = "상급자",
         ["required"] = "필요",
+        ["Leave date"] = "휴가일",
+        ["has passed"] = "경과",
         ["Please contact a higher-level manager for approval"] = "상급 관리자에게 승인을 요청하세요",
 
         // ── Lịch nhóm / đào tạo ────────────────────────────────────────────

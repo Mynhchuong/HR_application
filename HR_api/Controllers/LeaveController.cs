@@ -1338,6 +1338,12 @@ END;";
             if (!await _approvalConfig.CanApproveAsync(approverRole, requestInfo.Role))
                 return Ok(new { success = false, message = $"Phiếu này cần {await _approvalConfig.RequiredApproverNameAsync(requestInfo.Role)} phê duyệt." });
 
+            // Đã qua ngày nghỉ thì không cho duyệt nữa, chỉ được từ chối (yêu cầu 2026-11-23: đơn nghỉ
+            // 18/7 để tới 17/11 mới duyệt, đẩy ngày nghỉ cũ vào ERP). Cùng mốc với lúc tạo đơn: ngày
+            // bắt đầu trước hôm nay = quá hạn.
+            if (requestInfo.FromDate.Date < DateTime.Today)
+                return Ok(new { success = false, message = $"Đơn nghỉ từ ngày {requestInfo.FromDate:dd/MM/yyyy} đã qua, không thể duyệt. Vui lòng từ chối đơn này." });
+
             // Công tác (CT) chỉ Manager/Expat/Admin được duyệt — chặn hành động thật, không chỉ ẩn ở UI/list.
             if (requestInfo.LeaveType == "CT" && !await _approvalConfig.IsRequestTypeRoleAllowedAsync("LEAVE_CT", approverRole))
                 return Ok(new { success = false, message = "Đơn Công tác chỉ Manager, Expat hoặc Admin mới được duyệt" });

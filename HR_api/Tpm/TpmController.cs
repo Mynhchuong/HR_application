@@ -50,6 +50,43 @@ public class TpmController : ControllerBase
         }));
     }
 
+    // GET apiHR/Tpm/locations?empcd=...&parentId=...   (không có parentId = cấp 1) — dựng combobox liên động chọn vị trí
+    [HttpGet("locations")]
+    public async Task<IActionResult> Locations(string? empcd, long? parentId)
+    {
+        var (emp, error) = await _tpm.ResolveEmployeeAsync(empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+
+        var path = "/api/mysamho/locations";
+        if (parentId.HasValue) path += $"?parentId={parentId.Value}";
+        return Relay(await _tpm.CallAsync(HttpMethod.Get, path));
+    }
+
+    // POST apiHR/Tpm/location-report  body { empcd, itemCode, suggestedLocationId, note }
+    // Báo "vị trí máy trong hệ thống sai": chỉ GHI NHẬN, bảo trì xác nhận trên TPM.Web mới đổi vị trí thật.
+    [HttpPost("location-report")]
+    public async Task<IActionResult> LocationReport([FromBody] TpmLocationReportBody body)
+    {
+        var (emp, error) = await _tpm.ResolveEmployeeAsync(body?.Empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+
+        var note = body!.Note?.Trim();
+        if (!string.IsNullOrEmpty(note) && System.Text.Encoding.UTF8.GetByteCount(note) > 500)
+            return Ok(new { success = false, code = "NOTE_TOO_LONG", message = "Ghi chú quá dài." });
+
+        return Relay(await _tpm.CallAsync(HttpMethod.Post, "/api/mysamho/location-report", new
+        {
+            ItemCode = body.ItemCode,
+            SuggestedLocationId = body.SuggestedLocationId ?? 0,
+            Note = string.IsNullOrEmpty(note) ? null : note,
+            EmpCd = emp.EmpCd,
+            Name = VniConverter.ToUnicode(emp.Name),
+            DeptCd = emp.DeptCd, DeptNm = VniConverter.ToUnicode(emp.DeptNm),
+            LineCd = emp.LineCd, LineNm = VniConverter.ToUnicode(emp.LineNm),
+            WorkCd = emp.WorkCd, WorkNm = VniConverter.ToUnicode(emp.WorkNm),
+        }));
+    }
+
     // GET apiHR/Tpm/history?empcd=...&status=...
     [HttpGet("history")]
     public async Task<IActionResult> History(string? empcd, string? status)

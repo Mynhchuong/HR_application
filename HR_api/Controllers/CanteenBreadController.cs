@@ -508,11 +508,12 @@ public class CanteenBreadController : ControllerBase
 
     // GET /apiHR/CanteenBread/order-summary?from=&to=&deptcd=&linecd=&workcd=&clerkEmpcd=
     // Số suất cần nấu theo từng món, từng ngày — căn tin dùng để chốt số lượng (yêu cầu 2026-11-23).
-    //   Bữa trưa: mọi NV đang làm (chưa nghỉ việc tới ngày đó), TRỪ người có ngày nghỉ trong ERP (EFM410,
-    //             mọi loại: phép năm, có phép, ốm, công tác...). Món = dòng LUNCH trong CANTEEN_ORDER,
+    //   Bữa trưa: mọi NV đang làm (chưa nghỉ việc tới ngày đó), TRỪ người nghỉ ngày đó: đơn nghỉ trên app đã
+    //             duyệt (APPROVED) hoặc được quản lý sắp lịch (ASSIGNED), cộng ngày nghỉ HR nhập thẳng ERP (EFM410).
+    //             Không dùng riêng EFM410 vì đơn ngày tương lai chưa có trong ERP (24/11: ERP 4 người, app ~98). Món = dòng LUNCH trong CANTEEN_ORDER,
     //             không có = Mặn (mặc định). Đăng ký dài hạn đã được ghi sẵn từng ngày nên tự được tính.
     //   Tăng ca : NV có OT đã xác nhận ngày đó (HR_OT_REQUEST), cũng trừ người nghỉ. Món = dòng OT, không có = Mặn.
-    //   Bỏ Chủ nhật. Tối đa 31 ngày/lần.
+    //   Bỏ Chủ nhật và ngày lễ công ty (EAM800 — ERP không ghi ngày nghỉ vào ngày lễ). Tối đa 31 ngày/lần.
     [HttpGet("order-summary")]
     public async Task<IActionResult> OrderSummary(
         [FromQuery] string? from, [FromQuery] string? to,
@@ -545,14 +546,21 @@ public class CanteenBreadController : ControllerBase
                     SELECT DD, TO_CHAR(DD,'YYYYMMDD') DAT FROM (
                         SELECT :DF + LEVEL - 1 DD FROM DUAL CONNECT BY LEVEL <= :NDAYS)
                     WHERE TO_CHAR(DD,'DY','NLS_DATE_LANGUAGE=AMERICAN') <> 'SUN'
+                      AND NOT EXISTS (SELECT 1 FROM HRMS.EAM800 h WHERE TRUNC(h.HUILDAY) = DD)
                 ),
                 EMP AS (
                     SELECT ec.EMPCD, ec.RETDAT FROM HRMS.ECM100 ec
                     WHERE {string.Join(" AND ", empWhere)} {scopeSql}
                 ),
                 LV AS (
-                    SELECT DISTINCT x.EMPCD, x.FR_DAT FROM HRMS.EFM410 x
+                    SELECT x.EMPCD, x.FR_DAT FROM HRMS.EFM410 x
                     WHERE x.FR_DAT BETWEEN :DF2 AND :DT2
+                    UNION
+                    SELECT l.EMPCD, d.DD FROM D d
+                    JOIN HRMS.HR_LEAVE_REQUEST l ON d.DD BETWEEN TRUNC(l.FROM_DATE) AND TRUNC(l.TO_DATE)
+                    JOIN HRMS.HR_REQUEST r ON r.REQUEST_ID = l.REQUEST_ID
+                    WHERE r.STATUS IN ('APPROVED','ASSIGNED')
+                      AND l.FROM_DATE <= :DT4 + 1 AND l.TO_DATE >= :DF4
                 ),
                 CO AS (
                     SELECT co.EMPCD, co.DAT, co.TYPE_MEAL, co.TYPE_OF_FOOD FROM HRMS.CANTEEN_ORDER co
@@ -589,6 +597,7 @@ public class CanteenBreadController : ControllerBase
             ps.Add(Dp("DF2", df)); ps.Add(Dp("DT2", dt));
             ps.Add(new OracleParameter("DFS", df.ToString("yyyyMMdd"))); ps.Add(new OracleParameter("DTS", dt.ToString("yyyyMMdd")));
             ps.Add(Dp("DF3", df)); ps.Add(Dp("DT3", dt));
+            ps.Add(Dp("DF4", df)); ps.Add(Dp("DT4", dt));
 
             var rows = await _db.ExecuteQueryAsync(sql,
                 r => (Dat: r["DAT"]?.ToString() ?? "", Meal: r["MEAL"]?.ToString() ?? "", Food: r["FOOD"]?.ToString() ?? "",

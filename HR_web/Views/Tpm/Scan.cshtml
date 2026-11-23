@@ -72,6 +72,8 @@
     const URL_MACHINE = '@Url.Action("Machine", "Tpm")';
     const URL_REPORT  = '@Url.Action("Report", "Tpm")';
     const URL_HISTORY = '@Url.Action("History", "Tpm")';
+    const URL_LOCS    = '@Url.Action("Locations", "Tpm")';
+    const URL_LOCREP  = '@Url.Action("LocationReport", "Tpm")';
 
     const STATUS_LABEL = { REPORTED:'Chờ bảo trì', RECEIVED:'Bảo trì đã nhận', NEEDS_PARTS:'Chờ linh kiện', REPAIRED:'Đã sửa xong', CANCELLED:'Đã hủy' };
 
@@ -168,9 +170,13 @@
             ${kv('Quy cách', m.Specification)}
             ${kv('Số serial', m.SerialNo)}
             ${kv('Mã tài sản', m.FaCode)}
-        </div><div class="tpm-card" id="tpmAction">${action}</div>`;
+        </div><div class="tpm-card" id="tpmAction">${action}</div>
+        <div class="tpm-card" id="tpmLoc">
+            <button type="button" class="tpm-btn light" id="btnLocOpen">Vị trí máy không đúng? Báo vị trí sai</button>
+        </div>`;
         const btn = $('btnReport');
         if (btn) btn.onclick = () => report(m.ItemCode);
+        $('btnLocOpen').onclick = () => openLocForm(m);
         $('tpmResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
@@ -194,6 +200,68 @@
                 (names.length ? `<br>Có thể báo trực tiếp cho: ${esc(names.slice(0, 3).join(', '))}${names.length > 3 ? ' và ' + (names.length - 3) + ' người khác' : ''}.` : '') +
                 `</div><a class="tpm-link" href="${URL_HISTORY}">Xem lịch sử báo hư</a>`;
             toast('Đã ghi nhận báo hư', 'success');
+        } catch (e) { btn.disabled = false; toast('Lỗi kết nối', 'error'); }
+    }
+
+
+    // ── Báo vị trí máy sai: chọn lần lượt Nhà → Group → Line → Vị trí (cấp nào có con thì hiện tiếp), tới cấp cuối mới cho gửi.
+    // Chỉ GHI NHẬN — bảo trì xác nhận trên TPM.Web thì vị trí máy mới thật sự đổi.
+    let locLeafId = null;
+
+    async function fetchLocs(parentId) {
+        const r = await fetch(URL_LOCS + (parentId ? '?parentId=' + parentId : ''));
+        const d = await r.json();
+        if (!d.success) throw new Error(d.message || 'Không tải được danh sách vị trí');
+        return (d.items || d.Items || []).map(i => ({ id: i.Id ?? i.id, nm: i.Nm ?? i.nm }));
+    }
+
+    function addLocSelect(items) {
+        const sel = document.createElement('select');
+        sel.className = 'tpm-input mb-2';
+        sel.innerHTML = '<option value="">-- Chọn --</option>' + items.map(i => `<option value="${i.id}">${esc(i.nm)}</option>`).join('');
+        sel.onchange = () => onLocChange(sel);
+        $('locSelects').appendChild(sel);
+    }
+
+    async function onLocChange(sel) {
+        // bỏ các ô cấp sâu hơn ô vừa đổi
+        while (sel.nextElementSibling) sel.nextElementSibling.remove();
+        locLeafId = null; $('btnLocSend').disabled = true;
+        if (!sel.value) return;
+        try {
+            const kids = await fetchLocs(sel.value);
+            if (kids.length) addLocSelect(kids);
+            else { locLeafId = parseInt(sel.value, 10); $('btnLocSend').disabled = false; }   // cấp cuối
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function openLocForm(m) {
+        locLeafId = null;
+        $('tpmLoc').innerHTML = `<div class="tpm-name mb-2">Hệ thống đang ghi: <b>${esc(m.LocationPath || '—')}</b></div>
+            <label class="mb-1" style="font-weight:700;font-size:.9rem">Vị trí đúng của máy</label>
+            <div id="locSelects"></div>
+            <textarea class="tpm-input" id="locNote" maxlength="150" placeholder="Ghi chú (không bắt buộc)"></textarea>
+            <button type="button" class="tpm-btn primary mt-2" id="btnLocSend" disabled>Gửi báo vị trí sai</button>`;
+        $('btnLocSend').onclick = () => sendLocation(m.ItemCode);
+        try { addLocSelect(await fetchLocs(null)); }
+        catch (e) { $('tpmLoc').innerHTML = `<div class="tpm-notice">${esc(e.message)}</div>`; }
+    }
+
+    async function sendLocation(itemCode) {
+        if (!locLeafId) { toast('Vui lòng chọn vị trí đúng đến cấp cuối', 'error'); return; }
+        if (!confirm('Xác nhận báo vị trí máy ' + itemCode + ' bị sai?')) return;
+        const btn = $('btnLocSend'); btn.disabled = true;
+        try {
+            const r = await fetch(URL_LOCREP, { method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN},
+                body: JSON.stringify({ itemCode, suggestedLocationId: locLeafId, note: ($('locNote').value || '').trim() || null }) });
+            const d = await r.json();
+            if (!d.success) {
+                btn.disabled = false;
+                toast(d.code === 'LOCATION_REPORT_ALREADY_OPEN' ? 'Máy này đã có báo vị trí sai đang chờ bảo trì xử lý.' : (d.message || 'Gửi thất bại'), 'error');
+                return;
+            }
+            $('tpmLoc').innerHTML = '<div class="tpm-ok"><b>Đã ghi nhận báo vị trí sai.</b> Bảo trì sẽ kiểm tra và cập nhật lại vị trí máy.</div>';
+            toast('Đã ghi nhận báo vị trí sai', 'success');
         } catch (e) { btn.disabled = false; toast('Lỗi kết nối', 'error'); }
     }
 

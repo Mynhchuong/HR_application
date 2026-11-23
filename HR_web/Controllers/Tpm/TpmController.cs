@@ -53,12 +53,39 @@ public class TpmController : HR_web.Controllers.BaseController
         return Content(await _svc.ReportRawAsync(payload), "application/json");
     }
 
+    // GET /Tpm/Locations?parentId=   (không có parentId = cấp 1)
+    [HttpGet]
+    public async Task<IActionResult> Locations(long? parentId)
+    {
+        if (string.IsNullOrEmpty(Empcd) || !Allowed) return Json(new { success = false, message = "Không có quyền" });
+        return Content(await _svc.LocationsRawAsync(Empcd, parentId), "application/json");
+    }
+
+    // POST /Tpm/LocationReport  { itemCode, suggestedLocationId, note }
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> LocationReport([FromBody] LocationReportBody req)
+    {
+        if (string.IsNullOrEmpty(Empcd) || !Allowed) return Json(new { success = false, message = "Không có quyền" });
+        if (string.IsNullOrWhiteSpace(req?.ItemCode) || req.SuggestedLocationId is not > 0)
+            return Json(new { success = false, message = "Vui lòng chọn vị trí đúng của máy" });
+
+        var payload = new { empcd = Empcd, itemCode = req.ItemCode.Trim(), suggestedLocationId = req.SuggestedLocationId, note = req.Note?.Trim() };
+        return Content(await _svc.LocationReportRawAsync(payload), "application/json");
+    }
+
     // GET /Tpm/HistoryData?status=
     [HttpGet]
     public async Task<IActionResult> HistoryData(string? status)
     {
         if (string.IsNullOrEmpty(Empcd) || !Allowed) return Json(new { success = false, message = "Không có quyền" });
         return Content(await _svc.HistoryRawAsync(Empcd, status), "application/json");
+    }
+
+    public class LocationReportBody
+    {
+        public string? ItemCode { get; set; }
+        public long? SuggestedLocationId { get; set; }
+        public string? Note { get; set; }
     }
 
     public class ReportBody

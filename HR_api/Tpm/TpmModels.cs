@@ -9,6 +9,16 @@ public class TpmReportBody
     public string? Description { get; set; }
 }
 
+/// <summary>Body POST apiHR/Tpm/location-report ("báo vị trí máy sai"). Chỉ nhận mã NV + mã máy + vị trí đề xuất (+ ghi chú)
+/// — danh tính do HR_api tự tra như báo hư.</summary>
+public class TpmLocationReportBody
+{
+    public string? Empcd { get; set; }
+    public string? ItemCode { get; set; }
+    public long? SuggestedLocationId { get; set; }
+    public string? Note { get; set; }
+}
+
 /// <summary>Người dùng đã tra từ DB HR (ECM100 + EAM410 + HR_USERS) để gửi sang TPM.</summary>
 public class TpmEmployee
 {

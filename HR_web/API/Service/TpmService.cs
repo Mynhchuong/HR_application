@@ -26,6 +26,16 @@ public class TpmService
         return await ReadAsync(await _api.GetAsync_Raw("Tpm/history", qs));
     }
 
+    public async Task<string> LocationsRawAsync(string empcd, long? parentId)
+    {
+        var qs = $"empcd={Uri.EscapeDataString(empcd)}";
+        if (parentId.HasValue) qs += $"&parentId={parentId.Value}";
+        return await ReadAsync(await _api.GetAsync_Raw("Tpm/locations", qs));
+    }
+
+    public async Task<string> LocationReportRawAsync(object payload)
+        => await ReadAsync(await _api.PostAsync("Tpm/location-report", payload));
+
     public async Task<string> ReportRawAsync(object payload)
         => await ReadAsync(await _api.PostAsync("Tpm/report", payload));
 }

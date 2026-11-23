@@ -110,7 +110,7 @@
         <div class="sum-wrap" id="sumWrap">
             <div class="sum-head">
                 <h6><i class="bi bi-calculator me-1"></i>Số suất cần nấu</h6>
-                <span class="sum-note">Bữa trưa: NV đang làm − người nghỉ (ERP), chưa đổi món = Mặn · Đã gồm đăng ký dài hạn · Bỏ Chủ nhật</span>
+                <span class="sum-note">Bữa trưa: NV đang làm − người nghỉ (đơn đã duyệt / quản lý sắp lịch / HR nhập ERP), chưa đổi món = Mặn · Đã gồm đăng ký dài hạn · Bỏ Chủ nhật, ngày lễ</span>
             </div>
             <div class="sum-scroll">
                 <table class="sum-table">
@@ -277,7 +277,7 @@ async function loadSummary() {
         const d = await res.json();
         if (my !== sumSeq) return;
         if (!d.success) { body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${esc(d.message || 'Lỗi')}</td></tr>`; return; }
-        if (!d.data || !d.data.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">Không có dữ liệu (Chủ nhật được bỏ qua)</td></tr>'; return; }
+        if (!d.data || !d.data.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">Không có dữ liệu (Chủ nhật, ngày lễ được bỏ qua)</td></tr>'; return; }
         const n = v => (v || 0).toLocaleString('vi-VN');
         const wd = ['CN','T2','T3','T4','T5','T6','T7'];
         const tot = { lunch:{M:0,N:0,C:0,B:0,total:0}, leave:0 };

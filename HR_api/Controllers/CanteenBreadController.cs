@@ -446,37 +446,44 @@ public class CanteenBreadController : ControllerBase
                 return list;
             };
 
-            // Count
+            // Chỉ join ECM100 khi có lọc theo phòng/chuyền/công đoạn/phạm vi Clerk — đếm & phân trang
+            // trên CANTEEN_ORDER trước (2,4 triệu dòng), tên NV/phòng ban chỉ join cho đúng 1 trang.
+            bool needEmp = !string.IsNullOrEmpty(deptcd) || !string.IsNullOrEmpty(linecd)
+                        || !string.IsNullOrEmpty(workcd) || clerkScope != null;
+            string empJoin = needEmp ? "JOIN HRMS.ECM100 ec ON ec.EMPCD = co.EMPCD AND ec.JEAJIKGB = 'Y'" : "";
+
             var cntSql = $@"
                 SELECT COUNT(*) CNT
                 FROM HRMS.CANTEEN_ORDER co
-                LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = co.EMPCD AND ec.JEAJIKGB = 'Y'
-                LEFT JOIN (SELECT DEPTCD, MAX(DEPTNM) DEPTNM FROM HRMS.EAM410 GROUP BY DEPTCD) ea
-                       ON ea.DEPTCD = ec.DEPTCD
+                {empJoin}
                 WHERE {where}";
 
             var totalRows = await _db.ExecuteQueryAsync(cntSql,
                 r => Convert.ToInt32(r["CNT"]), buildParams().ToArray());
             int total = totalRows.FirstOrDefault();
 
-            // Data with pagination
+            // Phân trang kiểu ROWNUM (Oracle 10g) để Oracle dừng sớm, rồi mới gắn tên NV/phòng ban.
             var dataSql = $@"
-                SELECT * FROM (
-                    SELECT co.EMPCD, co.DAT, co.TYPE_MEAL, co.TYPE_OF_FOOD,
-                           co.CHANGE_FROM, co.UPDT_DT, co.IS_MYSAMHO,
-                           ec.CNAME EMP_NAME, ec.DEPTCD,
-                           ea.DEPTNM DEPT_NAME,
-                           ROW_NUMBER() OVER (ORDER BY co.DAT DESC, co.EMPCD) RN
-                    FROM HRMS.CANTEEN_ORDER co
-                    LEFT JOIN HRMS.ECM100 ec ON ec.EMPCD = co.EMPCD AND ec.JEAJIKGB = 'Y'
-                    LEFT JOIN (SELECT DEPTCD, MAX(DEPTNM) DEPTNM FROM HRMS.EAM410 GROUP BY DEPTCD) ea
-                           ON ea.DEPTCD = ec.DEPTCD
-                    WHERE {where}
-                ) WHERE RN > :OFFSET AND RN <= :LIMIT";
+                SELECT p.EMPCD, p.DAT, p.TYPE_MEAL, p.TYPE_OF_FOOD, p.CHANGE_FROM, p.UPDT_DT, p.IS_MYSAMHO,
+                       e2.CNAME EMP_NAME, e2.DEPTCD,
+                       (SELECT MAX(a.DEPTNM) FROM HRMS.EAM410 a WHERE a.DEPTCD = e2.DEPTCD) DEPT_NAME
+                FROM (
+                    SELECT q.*, ROWNUM RN FROM (
+                        SELECT co.EMPCD, co.DAT, co.TYPE_MEAL, co.TYPE_OF_FOOD,
+                               co.CHANGE_FROM, co.UPDT_DT, co.IS_MYSAMHO
+                        FROM HRMS.CANTEEN_ORDER co
+                        {empJoin}
+                        WHERE {where}
+                        ORDER BY co.DAT DESC, co.EMPCD, co.TYPE_MEAL
+                    ) q WHERE ROWNUM <= :LIMIT
+                ) p
+                LEFT JOIN HRMS.ECM100 e2 ON e2.EMPCD = p.EMPCD AND e2.JEAJIKGB = 'Y'
+                WHERE p.RN > :OFFSET
+                ORDER BY p.RN";
 
             var dataParams = buildParams();
-            dataParams.Add(new OracleParameter("OFFSET", offset));
             dataParams.Add(new OracleParameter("LIMIT",  offset + pageSize));
+            dataParams.Add(new OracleParameter("OFFSET", offset));
 
             var data = await _db.ExecuteQueryAsync(dataSql,
                 r => new
@@ -495,6 +502,117 @@ public class CanteenBreadController : ControllerBase
                 dataParams.ToArray());
 
             return Ok(new { success = true, total, page, pageSize, data });
+        }
+        catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
+    }
+
+    // GET /apiHR/CanteenBread/order-summary?from=&to=&deptcd=&linecd=&workcd=&clerkEmpcd=
+    // Số suất cần nấu theo từng món, từng ngày — căn tin dùng để chốt số lượng (yêu cầu 2026-11-23).
+    //   Bữa trưa: mọi NV đang làm (chưa nghỉ việc tới ngày đó), TRỪ người có ngày nghỉ trong ERP (EFM410,
+    //             mọi loại: phép năm, có phép, ốm, công tác...). Món = dòng LUNCH trong CANTEEN_ORDER,
+    //             không có = Mặn (mặc định). Đăng ký dài hạn đã được ghi sẵn từng ngày nên tự được tính.
+    //   Tăng ca : NV có OT đã xác nhận ngày đó (HR_OT_REQUEST), cũng trừ người nghỉ. Món = dòng OT, không có = Mặn.
+    //   Bỏ Chủ nhật. Tối đa 31 ngày/lần.
+    [HttpGet("order-summary")]
+    public async Task<IActionResult> OrderSummary(
+        [FromQuery] string? from, [FromQuery] string? to,
+        [FromQuery] string? deptcd, [FromQuery] string? linecd, [FromQuery] string? workcd,
+        [FromQuery] string? clerkEmpcd)
+    {
+        try
+        {
+            var df = (!string.IsNullOrEmpty(from) && DateTime.TryParse(from, out var f)) ? f.Date : DateTime.Today;
+            var dt = (!string.IsNullOrEmpty(to)   && DateTime.TryParse(to,   out var t)) ? t.Date : df;
+            if (dt < df) (df, dt) = (dt, df);
+            if ((dt - df).TotalDays > 30)
+                return Ok(new { success = false, message = "Tổng hợp tối đa 31 ngày, vui lòng thu hẹp khoảng ngày." });
+
+            var empWhere = new List<string> { "ec.JEAJIKGB = 'Y'" };
+            var ps = new List<OracleParameter>();
+            if (!string.IsNullOrEmpty(deptcd)) { empWhere.Add("ec.DEPTCD = :DEPTCD"); ps.Add(new OracleParameter("DEPTCD", deptcd)); }
+            if (!string.IsNullOrEmpty(linecd)) { empWhere.Add("ec.LINECD = :LINECD"); ps.Add(new OracleParameter("LINECD", linecd)); }
+            if (!string.IsNullOrEmpty(workcd)) { empWhere.Add("ec.WORKCD = :WORKCD"); ps.Add(new OracleParameter("WORKCD", workcd)); }
+            string scopeSql = "";
+            if (!string.IsNullOrEmpty(clerkEmpcd))
+            {
+                var sc = OTScopeFilterHelper.ForScopeByTuple(clerkEmpcd, empAlias: "ec", prefix: "CK");
+                scopeSql = sc.SqlClause;
+                ps.AddRange(sc.Params);
+            }
+
+            var sql = $@"
+                WITH D AS (
+                    SELECT DD, TO_CHAR(DD,'YYYYMMDD') DAT FROM (
+                        SELECT :DF + LEVEL - 1 DD FROM DUAL CONNECT BY LEVEL <= :NDAYS)
+                    WHERE TO_CHAR(DD,'DY','NLS_DATE_LANGUAGE=AMERICAN') <> 'SUN'
+                ),
+                EMP AS (
+                    SELECT ec.EMPCD, ec.RETDAT FROM HRMS.ECM100 ec
+                    WHERE {string.Join(" AND ", empWhere)} {scopeSql}
+                ),
+                LV AS (
+                    SELECT DISTINCT x.EMPCD, x.FR_DAT FROM HRMS.EFM410 x
+                    WHERE x.FR_DAT BETWEEN :DF2 AND :DT2
+                ),
+                CO AS (
+                    SELECT co.EMPCD, co.DAT, co.TYPE_MEAL, co.TYPE_OF_FOOD FROM HRMS.CANTEEN_ORDER co
+                    WHERE co.DAT BETWEEN :DFS AND :DTS
+                ),
+                OT AS (
+                    SELECT DISTINCT o.EMPCD, o.WORK_DATE FROM HRMS.HR_OT_REQUEST o
+                    WHERE o.WORK_DATE BETWEEN :DF3 AND :DT3 AND o.CONFIRM_STATUS = 'CONFIRMED'
+                )
+                SELECT DAT, MEAL, FOOD, COUNT(*) CNT FROM (
+                    SELECT d.DAT, 'LUNCH' MEAL, NVL(c.TYPE_OF_FOOD,'M') FOOD
+                    FROM D d CROSS JOIN EMP e
+                    LEFT JOIN CO c ON c.EMPCD = e.EMPCD AND c.DAT = d.DAT AND c.TYPE_MEAL = 'LUNCH'
+                    LEFT JOIN LV l ON l.EMPCD = e.EMPCD AND l.FR_DAT = d.DD
+                    WHERE (e.RETDAT IS NULL OR e.RETDAT > d.DAT) AND l.EMPCD IS NULL
+                    UNION ALL
+                    SELECT d.DAT, 'OT', NVL(c.TYPE_OF_FOOD,'M')
+                    FROM D d JOIN OT o ON o.WORK_DATE = d.DD
+                    JOIN EMP e ON e.EMPCD = o.EMPCD
+                    LEFT JOIN CO c ON c.EMPCD = e.EMPCD AND c.DAT = d.DAT AND c.TYPE_MEAL = 'OT'
+                    LEFT JOIN LV l ON l.EMPCD = e.EMPCD AND l.FR_DAT = d.DD
+                    WHERE l.EMPCD IS NULL
+                    UNION ALL
+                    -- Số người nghỉ (đã trừ) để căn tin đối chiếu
+                    SELECT d.DAT, 'LEAVE', '-'
+                    FROM D d JOIN LV l ON l.FR_DAT = d.DD
+                    JOIN EMP e ON e.EMPCD = l.EMPCD
+                    WHERE (e.RETDAT IS NULL OR e.RETDAT > d.DAT)
+                ) GROUP BY DAT, MEAL, FOOD";
+
+            OracleParameter Dp(string n, DateTime v) => new OracleParameter { ParameterName = n, OracleDbType = OracleDbType.Date, Value = v };
+            ps.Add(Dp("DF", df));
+            ps.Add(new OracleParameter("NDAYS", (int)(dt - df).TotalDays + 1));
+            ps.Add(Dp("DF2", df)); ps.Add(Dp("DT2", dt));
+            ps.Add(new OracleParameter("DFS", df.ToString("yyyyMMdd"))); ps.Add(new OracleParameter("DTS", dt.ToString("yyyyMMdd")));
+            ps.Add(Dp("DF3", df)); ps.Add(Dp("DT3", dt));
+
+            var rows = await _db.ExecuteQueryAsync(sql,
+                r => (Dat: r["DAT"]?.ToString() ?? "", Meal: r["MEAL"]?.ToString() ?? "", Food: r["FOOD"]?.ToString() ?? "",
+                      Cnt: Convert.ToInt32(r["CNT"])),
+                ps.ToArray());
+
+            var days = rows.GroupBy(x => x.Dat).OrderBy(g => g.Key).Select(g =>
+            {
+                object Meal(string meal)
+                {
+                    var m = g.Where(x => x.Meal == meal).ToList();
+                    int C(string food) => m.Where(x => x.Food == food).Sum(x => x.Cnt);
+                    return new { M = C("M"), N = C("N"), C = C("C"), B = C("B"), total = m.Sum(x => x.Cnt) };
+                }
+                return new
+                {
+                    dat   = g.Key,
+                    lunch = Meal("LUNCH"),
+                    ot    = Meal("OT"),
+                    leave = g.Where(x => x.Meal == "LEAVE").Sum(x => x.Cnt)
+                };
+            }).ToList();
+
+            return Ok(new { success = true, data = days });
         }
         catch (Exception ex) { return Ok(new { success = false, message = ex.Message }); }
     }

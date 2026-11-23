@@ -212,6 +212,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Đóng hội thoại hàng loạt", Url = "~/AdminInquiry/BulkClose",  Icon = "playlist_add_check",     Group = "chat", VisibleWhen = () => !isAdmin },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",               Group = "system" },
+                    new SideMenuItem { Title = "Bình luận bản tin",       Url = "~/BulletinAdmin/Comments",       Icon = "forum",                  Group = "system" },
                     new SideMenuItem { Title = "Thông báo",             Url = "~/AdminNoti/Index",            Icon = "campaign",               Group = "system" },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",                 Group = "system" },
                     new SideMenuItem { Title = "Quản lý Tài khoản",   Url = "~/User/UserManager",            Icon = "manage_accounts",          Group = "system" },
@@ -254,6 +255,7 @@ public static class SideMenuBuilder
                     new SideMenuItem { Title = "Báo cáo & Dashboard",     Url = "~/AdminInquiry/Report",        Icon = "bar_chart",       Group = "chat" },
 
                     new SideMenuItem { Title = "Quản lý Bản tin",       Url = "~/BulletinAdmin/Manage",       Icon = "campaign",        Group = "system" },
+                    new SideMenuItem { Title = "Bình luận bản tin",       Url = "~/BulletinAdmin/Comments",       Icon = "forum",           Group = "system" },
                     new SideMenuItem { Title = "Quy định công ty",      Url = "~/Policy/Manage",              Icon = "policy",          Group = "system" },
                     new SideMenuItem { Title = "Quản lý Survey",        Url = "~/SurveyAdmin/Index",          Icon = "poll",            Group = "system" },
                     new SideMenuItem { Title = "Cấu hình Trang chủ",    Url = "~/HomeAdmin/Index",            Icon = "home_app_logo",   Group = "system" },
@@ -275,6 +277,7 @@ public static class SideMenuBuilder
                 Children = new List<SideMenuItem>
                 {
                     new SideMenuItem { Title = "Quản lý Bản tin",  Url = "~/BulletinAdmin/Manage", Icon = "campaign" },
+                    new SideMenuItem { Title = "Bình luận bản tin",  Url = "~/BulletinAdmin/Comments", Icon = "forum"       },
                     new SideMenuItem { Title = "Quản lý Đào tạo",  Url = "~/TrainingAdmin/Index",  Icon = "school"   },
                     new SideMenuItem { Title = "Chứng chỉ Đào tạo", Url = "~/TrainingAdmin/Certificates", Icon = "card_membership" },
                     new SideMenuItem { Title = "Quản lý Kaizen",    Url = "~/KaizenAdmin/Index",     Icon = "tips_and_updates" },

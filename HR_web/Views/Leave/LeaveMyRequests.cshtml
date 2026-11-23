@@ -86,10 +86,17 @@
         <div class="card-body px-0 pt-0 pb-2 mt-3">
             <!-- Annual leave balance bar -->
             <div class="px-4 py-2 d-flex align-items-center gap-3 flex-wrap" id="balanceBar" style="border-bottom:1px solid #e9ecef; background:#f8fafc;">
-                <span class="text-xs fw-bold text-secondary"><i class="bi bi-calendar-heart me-1"></i>Phép năm:</span>
+                <span class="text-xs fw-bold text-secondary"><i class="bi bi-calendar-heart me-1"></i>Phép năm<span id="balCurYear"></span>:</span>
                 <span class="text-xs text-secondary">Được cấp: <strong id="balReceive" class="text-dark">-</strong> ngày</span>
                 <span class="text-xs text-secondary">Đã dùng: <strong id="balUsed" class="text-dark">-</strong> ngày</span>
                 <span class="text-xs fw-bold" id="balLeftWrap">Còn lại: <strong id="balLeft">-</strong> ngày</span>
+            </div>
+            <!-- Phép năm sau (dự kiến) — chỉ hiện khi API trả về năm kế tiếp -->
+            <div class="px-4 py-2 d-none align-items-center gap-3 flex-wrap" id="balanceBarNext" style="border-bottom:1px solid #e9ecef; background:#f8fafc;">
+                <span class="text-xs fw-bold text-secondary"><i class="bi bi-calendar-plus me-1"></i>Phép năm <span id="balNextYear"></span> <span class="fw-normal">(dự kiến)</span>:</span>
+                <span class="text-xs text-secondary">Được cấp: <strong id="balNextReceive" class="text-dark">-</strong> ngày</span>
+                <span class="text-xs text-secondary">Đã duyệt: <strong id="balNextUsed" class="text-dark">-</strong> ngày</span>
+                <span class="text-xs fw-bold" id="balNextLeftWrap">Còn lại: <strong id="balNextLeft">-</strong> ngày</span>
             </div>
 
             <!-- Source filter tabs -->
@@ -381,16 +388,46 @@ function loadBalance() {
     $.get(BALANCE_URL, function(res) {
         if (res && res.success && res.data) {
             myBalance = res.data;
-            const left = myBalance.LEFT_NUM ?? 0;
-            $('#balReceive').text(myBalance.RECEIVE_NUM ?? 0);
-            $('#balUsed').text(myBalance.USED_NUM ?? 0);
-            $('#balLeft').text(left);
-            const $w = $('#balLeftWrap');
-            if      (left <= 0) $w.css('color','#b91c1c');
-            else if (left <= 3) $w.css('color','#92400e');
-            else                $w.css('color','#166534');
+            const years = myBalance.YEARS || [];
+            const cur  = years.find(y => !y.ESTIMATED) || myBalance;
+            const next = years.find(y => y.ESTIMATED);
+            const paint = ($w, left) => $w.css('color', left <= 0 ? '#b91c1c' : left <= 3 ? '#92400e' : '#166534');
+            if (cur.YEAR) $('#balCurYear').text(' ' + cur.YEAR);
+            $('#balReceive').text(cur.RECEIVE_NUM ?? 0);
+            $('#balUsed').text(cur.USED_NUM ?? 0);
+            $('#balLeft').text(cur.LEFT_NUM ?? 0);
+            paint($('#balLeftWrap'), cur.LEFT_NUM ?? 0);
+            if (next) {
+                $('#balNextYear').text(next.YEAR);
+                $('#balNextReceive').text(next.RECEIVE_NUM);
+                $('#balNextUsed').text(next.USED_NUM);
+                $('#balNextLeft').text(next.LEFT_NUM);
+                paint($('#balNextLeftWrap'), next.LEFT_NUM);
+                $('#balanceBarNext').removeClass('d-none').addClass('d-flex');
+            }
         }
     });
+}
+
+// Phép năm tính theo NĂM CỦA NGÀY NGHỈ (2026 trừ phép 2026, 2027 trừ phép 2027) — trả về câu báo lỗi hoặc null.
+// Server kiểm tra lại y hệt (LeaveController.CheckAlBalanceAsync).
+function alBalanceError(from, to, days) {
+    if (myBalance == null || !from) return null;
+    const fy = parseInt(from.substring(0, 4), 10), ty = parseInt((to || from).substring(0, 4), 10);
+    if (fy !== ty)
+        return `Phép năm ${fy} và ${ty} tính riêng. Vui lòng tách thành 2 đơn: đến <strong>31/12/${fy}</strong> và từ <strong>01/01/${ty}</strong>.`;
+    const years = myBalance.YEARS;
+    const b = years ? years.find(y => y.YEAR === fy) : myBalance;   // API cũ chưa có YEARS → như trước
+    if (!b) {
+        // Năm cũ (ERP đã xoá số liệu) → để server quyết định; năm quá xa → chưa mở
+        if (years && years.length && fy < Math.min(...years.map(y => y.YEAR))) return null;
+        return `Chưa mở đăng ký phép năm <strong>${fy}</strong>.`;
+    }
+    const left = b.LEFT_NUM ?? 0;
+    if (days > left)
+        return `Bạn chỉ còn <strong>${left} ngày</strong> phép năm${b.YEAR ? ' ' + b.YEAR : ''}${b.ESTIMATED ? ' (dự kiến)' : ''}, không đủ để nghỉ <strong>${days} ngày</strong>.<br>` +
+               `<small class="text-muted">Vui lòng điều chỉnh số ngày hoặc chọn loại nghỉ khác.</small>`;
+    return null;
 }
 
 function emptyRow(msg, cols=9) {
@@ -1001,15 +1038,9 @@ async function saveCreate() {
             }
         } catch (e) { /* network fail — để server quyết định */ }
     }
-    if (createLT === 'AL' && myBalance != null) {
-        const left = myBalance.LEFT_NUM ?? 0;
-        if (days > left) {
-            $('#createError').removeClass('d-none').html(
-                `Bạn chỉ còn <strong>${left} ngày</strong> phép năm, không đủ để nghỉ <strong>${days} ngày</strong>.<br>` +
-                `<small class="text-muted">Vui lòng điều chỉnh số ngày hoặc chọn loại nghỉ khác.</small>`
-            );
-            return;
-        }
+    if (createLT === 'AL') {
+        const balErr = alBalanceError(from, to, days);
+        if (balErr) { $('#createError').removeClass('d-none').html(balErr); return; }
     }
 
     // Giờ công tác tùy chọn — chỉ CT 1 ngày. Thiếu 1 trong 2 = lỗi; đủ cả 2 thì validate đi < về.
@@ -1223,15 +1254,9 @@ async function saveEdit() {
             }
         } catch (e) { /* network fail — để server quyết định */ }
     }
-    if (editLT === 'AL' && myBalance != null) {
-        const left = myBalance.LEFT_NUM ?? 0;
-        if (editDays > left) {
-            $('#editError').removeClass('d-none').html(
-                `Bạn chỉ còn <strong>${left} ngày</strong> phép năm, không đủ để nghỉ <strong>${editDays} ngày</strong>.<br>` +
-                `<small class="text-muted">Vui lòng điều chỉnh số ngày hoặc chọn loại nghỉ khác.</small>`
-            );
-            return;
-        }
+    if (editLT === 'AL') {
+        const balErr = alBalanceError(from, to, editDays);
+        if (balErr) { $('#editError').removeClass('d-none').html(balErr); return; }
     }
 
     const editCtOutVal = getCtTime('editCtOut'), editCtInVal = getCtTime('editCtIn');

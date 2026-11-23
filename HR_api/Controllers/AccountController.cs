@@ -1118,8 +1118,9 @@ public class AccountController : ControllerBase
             return Ok(new { success = false, message = "Chưa bật role phòng ban (DB chưa chạy script create_dept_role.sql)", data = new List<object>() });
 
         var rows = await _oracleService.ExecuteQueryAsync(
-            "SELECT ID, ROLE_NAME FROM HRMS.HR_DEPT_ROLES ORDER BY ID",
-            r => new { id = Convert.ToInt32(r["ID"]), text = r["ROLE_NAME"]?.ToString() ?? "" });
+            "SELECT ID, ROLE_NAME FROM HRMS.HR_DEPT_ROLES WHERE ID < :PIC_FROM ORDER BY ID",
+            r => new { id = Convert.ToInt32(r["ID"]), text = r["ROLE_NAME"]?.ToString() ?? "" },
+            new OracleParameter("PIC_FROM", DeptRoleHelper.PicOnlyIdFrom));   // bỏ phòng chỉ-để-PIC
         return Ok(new { success = true, data = rows });
     }
 
@@ -1135,8 +1136,8 @@ public class AccountController : ControllerBase
         if (req.DeptRoleId is int id && id > 0)
         {
             var exists = await _oracleService.ExecuteQueryAsync(
-                "SELECT 1 FROM HRMS.HR_DEPT_ROLES WHERE ID = :ID",
-                r => 1, new OracleParameter("ID", id));
+                "SELECT 1 FROM HRMS.HR_DEPT_ROLES WHERE ID = :ID AND ID < :PIC_FROM",
+                r => 1, new OracleParameter("ID", id), new OracleParameter("PIC_FROM", DeptRoleHelper.PicOnlyIdFrom));
             if (exists.Count == 0) return Ok(new { success = false, message = "Role phòng ban không tồn tại" });
             deptRoleId = id;
         }

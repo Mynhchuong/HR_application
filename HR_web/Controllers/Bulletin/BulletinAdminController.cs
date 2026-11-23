@@ -29,6 +29,28 @@ public class BulletinAdminController : BaseController
         return View(list);
     }
 
+    // ─────────────────────────────────────────────
+    // GET /BulletinAdmin/Comments — mọi bình luận trên 1 trang, mới nhất trước, trả lời / xoá tại chỗ
+    // (yêu cầu 2026-11-23: khỏi phải mở từng bài). Phạm vi bài giống trang Manage.
+    // ─────────────────────────────────────────────
+    public async Task<IActionResult> Comments(int? bulletinId)
+    {
+        // Chỉ bài còn hạn (khớp API comment-feed)
+        var now = DateTime.Now;
+        ViewBag.Bulletins  = (await _service.GetAdminListAsync(CanViewAll ? null : CurrentUser?.EmpCd))
+            .Where(b => b.IS_PUBLISHED == 1 && b.PUBLISH_FROM <= now && b.PUBLISH_TO.Date >= now.Date).ToList();
+        ViewBag.BulletinId = bulletinId;
+        ViewBag.CanDelete  = CurrentUser.HasAnyRole("HR", "Admin");   // khớp quyền xoá ở Bulletin/DeleteComment
+        return View();
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCommentFeed(int? bulletinId, string? filter, string? search, int page = 1, int pageSize = 30)
+    {
+        var raw = await _service.GetCommentFeedRawAsync(CanViewAll ? null : CurrentUser?.EmpCd, bulletinId, filter, search, page, pageSize);
+        return Content(raw, "application/json");
+    }
+
     // XEM: HR/Admin/CSR thấy & xem trước được MỌI bản tin (CSR yêu cầu 2026-11-13 "muốn thấy hết");
     // Lean vẫn chỉ thấy bài role mình. Đây chỉ là quyền NHÌN — sửa/xóa/đăng vẫn theo CanManageAsync bên dưới,
     // nên CSR mở bài của Lean ra đọc được nhưng không đụng vào được (trang Manage cũng ẩn luôn nút sửa).

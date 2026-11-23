@@ -1,0 +1,38 @@
+/* DocReader — xem wwwroot/js/doc-reader.js. Cỡ chữ nội dung theo --doc-font (mặc định 17px trên điện thoại). */
+[data-doc-body] { font-size: var(--doc-font, 15px) !important; line-height: 1.75 !important; }
+[data-doc-body] table { font-size: .9em !important; }
+
+.doc-font-bar {
+    display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px;
+    background: #f1f5f9; border: 1px solid #e2e8f0; flex-shrink: 0;
+}
+.doc-font-btn {
+    min-width: 44px; height: 42px; border: 0; border-radius: 9px; background: transparent;
+    color: #475569; font-weight: 800; line-height: 1; padding: 0 8px;
+    -webkit-tap-highlight-color: transparent;
+}
+.doc-font-btn.doc-font-0 { font-size: .8rem; }
+.doc-font-btn.doc-font-1 { font-size: .95rem; }
+.doc-font-btn.doc-font-2 { font-size: 1.12rem; }
+.doc-font-btn.active { background: #fff; color: #0f172a; box-shadow: 0 1px 4px rgba(15, 23, 42, .12); }
+
+.doc-totop {
+    position: fixed; right: 16px; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); z-index: 1020;
+    width: 48px; height: 48px; border-radius: 50%; border: 0;
+    background: #1e293b; color: #fff; font-size: 1.25rem;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, .3);
+    opacity: 0; transform: translateY(12px); pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    -webkit-tap-highlight-color: transparent;
+}
+.doc-totop.show { opacity: .92; transform: none; pointer-events: auto; }
+@media (min-width: 992px) { .doc-totop { bottom: 28px; } }
+
+/* Bảng ≥3 cột trên điện thoại: đủ rộng để đọc, khung bọc ngoài cho vuốt ngang */
+@media (max-width: 576px) {
+    [data-doc-body] table.doc-wide { width: 560px !important; max-width: none !important; }
+}
+.doc-swipe-hint {
+    display: flex; align-items: center; gap: 6px; margin: .5rem 0 .25rem;
+    font-size: .78rem; font-weight: 600; color: #6366f1;
+}

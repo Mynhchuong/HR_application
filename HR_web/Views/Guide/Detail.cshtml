@@ -3,7 +3,15 @@
     ViewData["Title"] = Model.TITLE;
     bool isEmbed = Context.Request.Query["embed"] == "1";
     Layout = isEmbed ? "~/Views/Shared/_LayoutEmbed.cshtml" : "~/Views/Shared/_Layout.cshtml";
+
+    // Trình soạn thảo hay lưu "<p><br></p>" khi để trống → trước đây hiện 1 khung trắng rỗng dưới video.
+    // Có chữ thật hoặc ảnh/bảng/video mới coi là có nội dung.
+    var rawContent = Model.CONTENT ?? "";
+    var plain = System.Text.RegularExpressions.Regex.Replace(rawContent, "<[^>]+>|&nbsp;|&#160;", " ").Trim();
+    bool hasContent = plain.Length > 0
+        || System.Text.RegularExpressions.Regex.IsMatch(rawContent, "<(img|table|iframe|video)\\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 }
+<link rel="stylesheet" href="~/css/doc-reader.css" asp-append-version="true" />
 
 <style>
     :root {
@@ -145,6 +153,27 @@
                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .nav-next { justify-content: flex-end; }
     .nav-next .nav-btn-text { align-items: flex-end; text-align: right; }
+
+    .detail-tools { display: flex; align-items: center; justify-content: flex-end; gap: .5rem;
+                    margin: -.5rem 0 .75rem; font-size: .75rem; color: #64748b; }
+    .detail-all-btn { border-radius: 12px; }
+
+    /* ── Điện thoại: nút to, chuyển bài xếp dọc, tên bài không bị cắt ── */
+    @@media (max-width: 576px) {
+        .detail-page { padding-bottom: 6.5rem; }
+        .detail-back { min-height: 44px; font-size: .95rem; }
+        .detail-header { padding: 1.1rem 1.2rem; border-radius: 16px; }
+        .detail-title { font-size: 1.1rem; }
+        .detail-content-card { padding: 1.1rem 1rem; border-radius: 16px; }
+        .detail-video-card { border-radius: 14px; }
+        .detail-video-card .vfs-btn { width: 44px; height: 44px; }
+        .detail-nav { flex-direction: column; gap: .6rem; }
+        .detail-nav > div:empty { display: none; }
+        .nav-btn { min-height: 60px; padding: .8rem 1rem; }
+        .nav-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: .9rem; }
+        .detail-all-btn { display: flex !important; align-items: center; justify-content: center;
+                          width: 100%; min-height: 48px; font-size: .92rem !important; }
+    }
 </style>
 
 <div class="detail-page px-2">
@@ -184,10 +213,11 @@
     }
 
     <!-- Nội dung text -->
-    @if (!string.IsNullOrEmpty(Model.CONTENT))
+    @if (hasContent)
     {
+        <div class="detail-tools"><span>Cỡ chữ</span><div data-doc-font></div></div>
         <div class="detail-content-card">
-            <div class="guide-content" id="guideContent">
+            <div class="guide-content" id="guideContent" data-doc-body>
                 @Html.Raw(Model.CONTENT)
             </div>
         </div>
@@ -230,13 +260,14 @@
 
     <!-- Back bottom -->
     <div class="text-center mt-2">
-        <a href="@Url.Action("Index", "Guide")" class="btn btn-outline-secondary btn-sm mb-0" style="border-radius:10px;">
+        <a href="@Url.Action("Index", "Guide")" class="btn btn-outline-secondary btn-sm mb-0 detail-all-btn">
             <i class="bi bi-grid me-1"></i>Xem tất cả hướng dẫn
         </a>
     </div>
 </div>
 
 @section Scripts {
+<script src="~/js/doc-reader.js" asp-append-version="true"></script>
 <script>
     // Wrap table để scroll ngang trên mobile
     document.querySelectorAll('#guideContent table').forEach(tbl => {

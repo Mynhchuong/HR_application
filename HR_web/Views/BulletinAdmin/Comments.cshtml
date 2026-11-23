@@ -1,0 +1,228 @@
+@{
+    ViewData["Title"] = "Bình luận bản tin";
+    var bulletins  = ViewBag.Bulletins as List<HR_web.Models.Bulletin.BulletinModel> ?? new();
+    int? selBulletin = ViewBag.BulletinId as int?;
+    bool canDelete = ViewBag.CanDelete == true;
+}
+
+@section Styles {
+<style>
+    .bc-page { max-width: 920px; margin: 0 auto; }
+    .bc-stats { display: flex; gap: .5rem; flex-wrap: wrap; padding: 0 1.25rem .75rem; }
+    .bc-stat { flex: 1 1 140px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: .55rem .8rem; cursor: pointer; }
+    .bc-stat.active { border-color: #f59e0b; background: #fffbeb; }
+    .bc-stat b { display: block; font-size: 1.25rem; color: #0f172a; line-height: 1.2; }
+    .bc-stat span { font-size: .75rem; color: #64748b; font-weight: 600; }
+    .bc-filter { display: flex; gap: .5rem; flex-wrap: wrap; padding: 0 1.25rem .75rem; }
+    .bc-filter select, .bc-filter input { height: 38px; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 0 .7rem; font-size: .85rem; background: #fff; outline: none; }
+    .bc-filter select { flex: 1 1 260px; min-width: 0; }
+    .bc-filter input  { flex: 1 1 200px; min-width: 0; }
+
+    .bc-list { padding: 0 1.25rem; }
+    .bc-item { border: 1px solid #e2e8f0; border-radius: 14px; padding: .8rem .95rem; margin-bottom: .6rem; background: #fff; }
+    .bc-post { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 700; color: #b45309;
+               background: #fffbeb; border-radius: 8px; padding: 2px 8px; text-decoration: none; max-width: 100%; }
+    .bc-post span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bc-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; margin-top: .45rem; flex-wrap: wrap; }
+    .bc-who { font-weight: 700; color: #0f172a; font-size: .9rem; }
+    .bc-meta { font-size: .74rem; color: #64748b; }
+    .bc-time { font-size: .76rem; color: #475569; white-space: nowrap; font-weight: 600; }
+    .bc-text { margin-top: .4rem; font-size: .92rem; color: #1e293b; white-space: pre-wrap; word-break: break-word; }
+    .bc-actions { display: flex; align-items: center; gap: .4rem; margin-top: .55rem; flex-wrap: wrap; }
+    .bc-btn { border: 1px solid #e2e8f0; background: #fff; border-radius: 9px; padding: .3rem .7rem; font-size: .78rem; font-weight: 700; color: #334155; min-height: 34px; }
+    .bc-btn.reply { color: #1d4ed8; border-color: #bfdbfe; background: #eff6ff; }
+    .bc-btn.del   { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+    .bc-tag { font-size: .7rem; font-weight: 700; border-radius: 20px; padding: 2px 8px; }
+    .bc-tag.done { background: #dcfce7; color: #166534; }
+    .bc-replies { margin-top: .6rem; border-left: 3px solid #bbf7d0; padding-left: .8rem; background: #fbfdfb; border-radius: 0 10px 10px 0; }
+    .bc-rep { padding: .35rem 0; border-bottom: 1px dashed #e2e8f0; }
+    .bc-rep:last-child { border-bottom: 0; }
+    .bc-rep-head { display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; font-size: .78rem; }
+    .bc-rep-head b { color: #166534; }
+    .bc-rep-head span { color: #64748b; white-space: nowrap; }
+    .bc-rep-text { font-size: .85rem; color: #334155; white-space: pre-wrap; word-break: break-word; }
+    .bc-norep { font-size: .76rem; color: #94a3b8; }
+    .bc-rep-act { display: flex; gap: .9rem; margin-top: .15rem; font-size: .76rem; font-weight: 700; }
+    .bc-rep-act a { color: #2563eb; text-decoration: none; padding: .2rem 0; }
+    .bc-rep-act a.del { color: #dc2626; }
+    .bc-reply-box { margin-top: .55rem; display: flex; gap: .4rem; }
+    .bc-reply-box textarea { flex: 1; min-width: 0; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: .45rem .6rem; font-size: .88rem; resize: vertical; min-height: 42px; outline: none; }
+    .bc-reply-box button { border: 0; border-radius: 10px; background: #2563eb; color: #fff; font-weight: 700; font-size: .82rem; padding: 0 .9rem; }
+    .bc-empty { text-align: center; color: #94a3b8; padding: 2.5rem 1rem; }
+    .bc-pager { display: flex; justify-content: space-between; align-items: center; padding: .5rem 1.25rem 1rem; gap: .5rem; flex-wrap: wrap; }
+    .bc-pager .pagination .page-link { cursor: pointer; }
+    @@media (max-width: 576px) {
+        .bc-stats, .bc-filter, .bc-list, .bc-pager { padding-left: .75rem; padding-right: .75rem; }
+        .bc-stats { flex-wrap: nowrap; gap: .4rem; }
+        .bc-stat { flex: 1 1 0; min-width: 0; padding: .45rem .55rem; }
+        .bc-stat b { font-size: 1.1rem; }
+        .bc-stat span { font-size: .68rem; line-height: 1.25; display: block; }
+        .bc-reply-box { flex-direction: column; }
+        .bc-reply-box button { min-height: 42px; }
+    }
+</style>
+}
+
+<div class="container-fluid py-4">
+@Html.AntiForgeryToken()
+<div class="card bc-page">
+    <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
+        <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="text-white mb-0"><i class="bi bi-chat-dots-fill me-1"></i>Bình luận bản tin</h6>
+            <a href="@Url.Action("Manage", "BulletinAdmin")" class="btn btn-sm btn-white mb-0"><i class="bi bi-arrow-left me-1"></i>Quản lý bản tin</a>
+        </div>
+    </div>
+
+    <div class="card-body px-0 pt-4 pb-0">
+        <div class="bc-stats">
+            <div class="bc-stat" style="cursor:default"><b id="stTotal">–</b><span>Bình luận + trả lời (bài còn hạn)</span></div>
+            <div class="bc-stat" style="cursor:default"><b id="stToday">–</b><span>Bình luận hôm nay</span></div>
+        </div>
+
+        <div class="bc-filter">
+            <select id="fBulletin" onchange="bcLoad(1)">
+                <option value="">— Tất cả bản tin —</option>
+                @foreach (var b in bulletins)
+                {
+                    <option value="@b.ID" selected="@(selBulletin == b.ID)">@b.TITLE (@b.COMMENT_COUNT)</option>
+                }
+            </select>
+            <input type="search" id="fSearch" placeholder="Tìm nội dung, mã NV, tên…" />
+        </div>
+
+        <div class="bc-list" id="bcList"><div class="bc-empty"><div class="spinner-border text-warning"></div></div></div>
+        <div class="bc-pager"><span id="bcCount" class="text-sm text-secondary"></span><ul class="pagination pagination-sm mb-0" id="bcPager"></ul></div>
+    </div>
+</div>
+</div>
+
+@section Scripts {
+<script>
+const FEED_URL   = '@Url.Action("GetCommentFeed", "BulletinAdmin")';
+const REPLY_URL  = '@Url.Action("AddComment", "Bulletin")';
+const DELETE_URL = '@Url.Action("DeleteComment", "Bulletin")';
+const VIEW_URL   = '@Url.Action("Detail", "Bulletin")';
+const CAN_DELETE = @(canDelete.ToString().ToLower());
+const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+const PAGE_SIZE = 30;
+let bcPage = 1, bcTotal = 0, bcSeq = 0;
+
+const bcEsc = s => (s ?? '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const bcPad = n => String(n).padStart(2, '0');
+function bcWhen(iso) {
+    const d = new Date(iso), now = new Date();
+    const hm = `${bcPad(d.getHours())}:${bcPad(d.getMinutes())}`;
+    const day0 = x => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+    const diff = Math.round((day0(now) - day0(d)) / 86400000);
+    if (diff === 0) return `${hm} hôm nay`;
+    if (diff === 1) return `${hm} hôm qua`;
+    return `${hm} ${bcPad(d.getDate())}/${bcPad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+async function bcLoad(p = 1) {
+    bcPage = p;
+    const qs = new URLSearchParams({ page: bcPage, pageSize: PAGE_SIZE });
+    const b = document.getElementById('fBulletin').value, q = document.getElementById('fSearch').value.trim();
+    if (b) qs.set('bulletinId', b);
+    if (q) qs.set('search', q);
+    const list = document.getElementById('bcList');
+    list.innerHTML = '<div class="bc-empty"><div class="spinner-border text-warning"></div></div>';
+    const my = ++bcSeq;
+    let d;
+    try { d = await (await fetch(FEED_URL + '?' + qs)).json(); } catch { d = { success: false, message: 'Lỗi kết nối' }; }
+    if (my !== bcSeq) return;
+    if (!d.success) { list.innerHTML = `<div class="bc-empty text-danger">${bcEsc(d.message || 'Lỗi')}</div>`; return; }
+    bcTotal = d.total;
+    document.getElementById('stTotal').textContent = d.all;
+    document.getElementById('stToday').textContent = d.today;
+    if (!d.data.length) { list.innerHTML = '<div class="bc-empty">Không có bình luận nào</div>'; bcRenderPager(); return; }
+    list.innerHTML = d.data.map(bcItem).join('');
+    bcRenderPager();
+}
+
+// 1 khối = 1 bình luận chính; các câu trả lời nằm bên trong. Bấm "Trả lời" ở đúng dòng muốn trả lời
+// (bình luận chính hoặc 1 câu trả lời con) — người được trả lời nhận thông báo.
+function bcItem(c) {
+    const name = c.fullName || c.empCname || c.empcd;
+    const reps = (c.replies || []).map(r => `
+        <div class="bc-rep" id="c${r.id}">
+            <div class="bc-rep-head"><span><b class="vni-font">↪ ${bcEsc(r.name || r.empcd)}</b> <span class="bc-meta">· ${bcEsc(r.empcd)}${r.dept ? ' · ' + bcEsc(r.dept) : ''}</span></span><span>${bcWhen(r.instDt)}</span></div>
+            <div class="bc-rep-text">${bcEsc(r.content)}</div>
+            <div class="bc-rep-act">
+                <a href="javascript:;" onclick="bcOpenReply(${r.id}, ${c.bulletinId})"><i class="bi bi-reply me-1"></i>Trả lời</a>
+                ${CAN_DELETE ? `<a href="javascript:;" class="del" onclick="bcDelete(${r.id})"><i class="bi bi-trash me-1"></i>Xoá</a>` : ''}
+            </div>
+            <div class="bc-reply-slot"></div>
+        </div>`).join('');
+    return `<div class="bc-item" id="c${c.id}">
+        <a class="bc-post" href="${VIEW_URL}/${c.bulletinId}" target="_blank" title="Mở bài viết"><i class="bi bi-megaphone"></i><span>${bcEsc(c.bulletinTitle)}</span></a>
+        <div class="bc-head">
+            <div><span class="bc-who vni-font">${bcEsc(name)}</span> <span class="bc-meta">· ${bcEsc(c.empcd)}${c.deptName ? ' · ' + bcEsc(c.deptName) : ''}</span></div>
+            <span class="bc-time"><i class="bi bi-clock me-1"></i>${bcWhen(c.instDt)}</span>
+        </div>
+        <div class="bc-text">${bcEsc(c.content)}</div>
+        <div class="bc-actions">
+            ${c.replyCount ? `<span class="bc-tag done"><i class="bi bi-chat-dots me-1"></i>${c.replyCount} trả lời</span>` : '<span class="bc-norep">Chưa có ai trả lời</span>'}
+            <button type="button" class="bc-btn reply" onclick="bcOpenReply(${c.id}, ${c.bulletinId})"><i class="bi bi-reply me-1"></i>Trả lời</button>
+            ${CAN_DELETE ? `<button type="button" class="bc-btn del" onclick="bcDelete(${c.id})"><i class="bi bi-trash me-1"></i>Xoá</button>` : ''}
+        </div>
+        <div class="bc-reply-slot"></div>
+        ${reps ? `<div class="bc-replies">${reps}</div>` : ''}
+    </div>`;
+}
+
+function bcOpenReply(id, bulletinId) {
+    const slot = document.querySelector(`#c${id} > .bc-reply-slot`);
+    document.querySelectorAll('.bc-reply-slot').forEach(x => { if (x !== slot) x.innerHTML = ''; });   // mỗi lúc 1 ô trả lời
+    if (slot.innerHTML) { slot.innerHTML = ''; return; }
+    slot.innerHTML = `<div class="bc-reply-box">
+        <textarea rows="2" maxlength="500" placeholder="Nhập câu trả lời…"></textarea>
+        <button type="button">Gửi</button></div>`;
+    const ta = slot.querySelector('textarea'), btn = slot.querySelector('button');
+    ta.focus();
+    btn.onclick = async () => {
+        const content = ta.value.trim();
+        if (!content) { ta.focus(); return; }
+        btn.disabled = true;
+        try {
+            const body = new URLSearchParams({ bulletinId, content, parentId: id });
+            const r = await (await fetch(REPLY_URL, { method: 'POST', headers: { 'RequestVerificationToken': TOKEN }, body })).json();
+            if (!r.success) { showToast(r.message || 'Không gửi được', 'error'); btn.disabled = false; return; }
+            showToast('Đã trả lời', 'success');
+            bcLoad(bcPage);
+        } catch { showToast('Lỗi kết nối', 'error'); btn.disabled = false; }
+    };
+}
+
+function bcDelete(id) {
+    showConfirm('Xoá bình luận này? Nhân viên sẽ không còn thấy nó trên bài viết.', async () => {
+        try {
+            const r = await (await fetch(DELETE_URL, { method: 'POST', headers: { 'RequestVerificationToken': TOKEN }, body: new URLSearchParams({ id }) })).json();
+            if (!r.success) { showToast(r.message || 'Không xoá được', 'error'); return; }
+            showToast('Đã xoá', 'success');
+            bcLoad(bcPage);
+        } catch { showToast('Lỗi kết nối', 'error'); }
+    }, { title: 'Xoá bình luận', okText: 'Xoá', okClass: 'btn-danger' });
+}
+
+function bcRenderPager() {
+    const pages = Math.max(1, Math.ceil(bcTotal / PAGE_SIZE));
+    document.getElementById('bcCount').innerHTML = bcTotal ? `${(bcPage - 1) * PAGE_SIZE + 1}–${Math.min(bcPage * PAGE_SIZE, bcTotal)} / <b>${bcTotal}</b> · Trang ${bcPage}/${pages}` : '';
+    const ul = document.getElementById('bcPager'); ul.innerHTML = '';
+    if (pages <= 1) return;
+    const mk = (label, p, dis, act) => {
+        const li = document.createElement('li'); li.className = 'page-item' + (dis ? ' disabled' : '') + (act ? ' active' : '');
+        const a = document.createElement('a'); a.className = 'page-link'; a.innerHTML = label;
+        if (!dis && !act) a.onclick = () => { bcLoad(p); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+        li.appendChild(a); ul.appendChild(li);
+    };
+    mk('&laquo;', 1, bcPage <= 1); mk('&lsaquo;', bcPage - 1, bcPage <= 1);
+    for (let p = Math.max(1, bcPage - 2); p <= Math.min(pages, bcPage + 2); p++) mk(p, p, false, p === bcPage);
+    mk('&rsaquo;', bcPage + 1, bcPage >= pages); mk('&raquo;', pages, bcPage >= pages);
+}
+
+let bcSearchT;
+document.getElementById('fSearch').addEventListener('input', () => { clearTimeout(bcSearchT); bcSearchT = setTimeout(() => bcLoad(1), 350); });
+bcLoad(1);
+</script>
+}

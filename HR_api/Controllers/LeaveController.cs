@@ -188,27 +188,108 @@ public class LeaveController : ControllerBase
     // PENDING cùng lúc — nếu NV có nhiều đơn AL PENDING song song, tổng có thể vượt LEFT_NUM cho
     // tới khi có đơn được duyệt (do ERP mới là nơi trừ thật). Đây là giới hạn đã biết, không phải
     // lỗi thiếu sót của riêng chỗ này.
-    private async Task<string?> CheckAlBalanceAsync(string empcd, decimal totalDays)
+    // Phép năm tính THEO NĂM CỦA NGÀY NGHỈ, không theo năm hiện tại (sửa 2026-11-21: NV xin AL tháng 2/2027
+    // bị báo "chỉ còn 3 ngày" — số còn lại của 2026 — dù 2027 chưa dùng ngày nào). Không cứng năm nào,
+    // chạy đúng cho mọi lần qua năm:
+    // - Đã dùng: đếm EFM410 theo năm của FR_DAT (trigger EFM410_TR01 của ERP cũng trừ vào năm đó).
+    // - Được cấp (EFM100, job ERP tạo dòng năm mới lúc ~0h ngày 01/01; hiện chỉ giữ năm hiện tại):
+    //     có dòng của đúng năm đó        → RECEIVE_NUM
+    //     năm ngay sau năm mới nhất      → YEAR_TOTAL (12 + thâm niên) của năm mới nhất, "dự kiến"
+    //                                      (có thể thiếu 1 ngày với NV vừa đủ mốc thâm niên)
+    //     xa hơn nữa                     → chưa mở đăng ký
+    //     năm cũ, ERP đã xoá số liệu     → không còn gì để so, KHÔNG chặn (vd đầu tháng 1 duyệt
+    //                                      đơn tháng 12 còn treo)
+    internal enum AlYearKind { Actual, Estimated, NotOpen, Closed }
+    private sealed record AlYearBalance(int Year, AlYearKind Kind, int Receive, int Used, int Left)
     {
-        const string sql = @"
-            WITH ALLOC AS (
-                SELECT MAX(RECEIVE_NUM) AS RECEIVE_NUM FROM HRMS.EFM100
-                WHERE EMPCD = :EMPCD AND SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
-            ),
-            USED AS (
-                SELECT COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
-                FROM HRMS.EFM410
-                WHERE EMPCD = :EMPCD2 AND TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
-            )
-            SELECT NVL(A.RECEIVE_NUM,0) - NVL(U.USED_NUM,0) AS LEFT_NUM FROM ALLOC A, USED U";
+        public bool Estimated => Kind == AlYearKind.Estimated;
+    }
 
-        var rows = await _oracleService.ExecuteQueryAsync(sql,
-            r => r["LEFT_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"]),
-            new OracleParameter("EMPCD", empcd), new OracleParameter("EMPCD2", empcd));
+    // Phần quyết định thuần (không đụng DB) — tách riêng để thử được mọi kịch bản qua năm.
+    // efm = các dòng EFM100 của NV (năm, RECEIVE_NUM, YEAR_TOTAL).
+    internal static (AlYearKind Kind, int Receive) ResolveAlAllocation(
+        IReadOnlyList<(int Y, int R, int YT)> efm, int year, int todayYear)
+    {
+        // NV chưa có dòng nào (mới vào, ERP chưa cấp): năm nay được cấp 0 — giữ hành vi cũ
+        if (efm.Count == 0)
+            return year == todayYear     ? (AlYearKind.Actual, 0)
+                 : year == todayYear + 1 ? (AlYearKind.Estimated, 0)
+                 : year > todayYear      ? (AlYearKind.NotOpen, 0)
+                 :                         (AlYearKind.Closed, 0);
 
-        int leftNum = rows.FirstOrDefault();
-        if (totalDays > leftNum)
-            return $"Bạn chỉ còn {leftNum} ngày phép năm, không đủ để nghỉ {totalDays} ngày.";
+        int latest = efm.Max(x => x.Y);
+        foreach (var x in efm) if (x.Y == year) return (AlYearKind.Actual, x.R);
+        if (year == latest + 1) return (AlYearKind.Estimated, efm.First(x => x.Y == latest).YT);
+        if (year > latest + 1)  return (AlYearKind.NotOpen, 0);
+        return (AlYearKind.Closed, 0);
+    }
+
+    private async Task<AlYearBalance> GetAlYearBalanceAsync(string empcd, int year)
+    {
+        var efm = await _oracleService.ExecuteQueryAsync(@"
+            SELECT SUBSTR(CAL_MONTH,1,4) Y, MAX(NVL(RECEIVE_NUM,0)) R, MAX(NVL(YEAR_TOTAL,0)) YT
+            FROM HRMS.EFM100 WHERE EMPCD = :EMPCD GROUP BY SUBSTR(CAL_MONTH,1,4)",
+            r => (Y: int.TryParse(r["Y"]?.ToString(), out var y) ? y : 0, R: Convert.ToInt32(r["R"]), YT: Convert.ToInt32(r["YT"])),
+            new OracleParameter("EMPCD", empcd));
+
+        var (kind, receive) = ResolveAlAllocation(efm, year, DateTime.Today.Year);
+        if (kind is AlYearKind.NotOpen or AlYearKind.Closed)
+            return new AlYearBalance(year, kind, 0, 0, 0);
+
+        var used = (await _oracleService.ExecuteQueryAsync(@"
+            SELECT COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) U
+            FROM HRMS.EFM410
+            WHERE EMPCD = :EMPCD AND FR_DAT >= :D1 AND FR_DAT < :D2",
+            r => Convert.ToInt32(r["U"]),
+            new OracleParameter("EMPCD", empcd),
+            new OracleParameter { ParameterName = "D1", OracleDbType = OracleDbType.Date, Value = new DateTime(year, 1, 1) },
+            new OracleParameter { ParameterName = "D2", OracleDbType = OracleDbType.Date, Value = new DateTime(year + 1, 1, 1) }
+        )).FirstOrDefault();
+
+        return new AlYearBalance(year, kind, receive, used, receive - used);
+    }
+
+    private async Task<string?> CheckAlBalanceAsync(string empcd, decimal totalDays, DateTime fromDate, DateTime toDate)
+    {
+        // Mỗi đơn chỉ trừ vào 1 năm — đơn vắt qua năm phải tách để trừ đúng năm
+        if (fromDate.Year != toDate.Year)
+            return $"Phép năm {fromDate.Year} và {toDate.Year} tính riêng. Vui lòng tách thành 2 đơn: đến 31/12/{fromDate.Year} và từ 01/01/{toDate.Year}.";
+
+        var bal = await GetAlYearBalanceAsync(empcd, fromDate.Year);
+        if (bal.Kind == AlYearKind.NotOpen)
+            return $"Chưa mở đăng ký phép năm {fromDate.Year}.";
+        if (bal.Kind == AlYearKind.Closed)
+            return null;
+        if (totalDays > bal.Left)
+            return $"Bạn chỉ còn {bal.Left} ngày phép năm {bal.Year}{(bal.Estimated ? " (dự kiến)" : "")}, không đủ để nghỉ {totalDays} ngày.";
+        return null;
+    }
+
+    // SP_015_NEW (ERP), mỗi NGÀY phép năm (PN) gọi 1 lần: đọc EFM100.LEFT_NUM của dòng năm theo SYSDATE
+    // (CAL_MONTH = năm hiện tại || '01'); <= 0 thì thoát êm, KHÔNG báo lỗi, không ghi ngày đó. Thiếu dòng
+    // đó (job đầu năm chưa chạy) thì SP lỗi NO_DATA_FOUND. Trigger chỉ trừ LEFT_NUM của dòng cùng năm
+    // với ngày nghỉ. Nên:
+    //   ngày nghỉ cùng năm hiện tại → LEFT_NUM phải đủ cho CẢ đơn (mỗi ngày trừ 1, hụt thì mất các ngày sau)
+    //   ngày nghỉ năm khác          → LEFT_NUM chỉ cần > 0 (không bị trừ)
+    // Không đủ mà vẫn duyệt thì app báo đã duyệt nhưng ERP thiếu ngày → chặn trước khi gọi SP.
+    private async Task<string?> CheckErpAcceptsAlAsync(string empcd, DateTime fromDate, decimal totalDays)
+    {
+        var rows = await _oracleService.ExecuteQueryAsync(@"
+            SELECT TO_NUMBER(TO_CHAR(SYSDATE,'YYYY')) NOW_Y,
+                   (SELECT MAX(NVL(LEFT_NUM,0)) FROM HRMS.EFM100
+                     WHERE EMPCD = :EMPCD AND CAL_MONTH = TO_CHAR(SYSDATE,'YYYY')||'01') L
+            FROM DUAL",
+            r => (NowY: Convert.ToInt32(r["NOW_Y"]), Left: r["L"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["L"])),
+            new OracleParameter("EMPCD", empcd));
+        var (nowY, left) = rows.FirstOrDefault();
+
+        if (left == null)
+            return $"ERP chưa có số phép năm {nowY} của NV này nên chưa ghi được phép năm. Vui lòng báo HR kiểm tra rồi duyệt lại.";
+        int need = fromDate.Year == nowY ? (int)Math.Ceiling(totalDays) : 1;
+        if (left < need)
+            return fromDate.Year > nowY
+                ? $"ERP chưa nhận phép năm {fromDate.Year} cho NV đã hết phép năm {nowY}. Vui lòng duyệt lại từ ngày 01/01/{fromDate.Year}."
+                : $"ERP chỉ còn {left} ngày phép năm {nowY} cho NV này, không đủ ghi {totalDays} ngày. Vui lòng báo HR kiểm tra.";
         return null;
     }
 
@@ -525,7 +606,7 @@ END;";
             // gọi thẳng API là bỏ qua được (ảnh hưởng lương thật nếu duyệt vượt số ngày được cấp).
             if (model.LEAVE_TYPE == "AL")
             {
-                string? balanceError = await CheckAlBalanceAsync(model.EMPCD, model.TOTAL_DAYS);
+                string? balanceError = await CheckAlBalanceAsync(model.EMPCD, model.TOTAL_DAYS, fromDate, toDate);
                 if (balanceError != null)
                     return Ok(new { success = false, message = balanceError });
             }
@@ -805,7 +886,7 @@ END;";
 
             if (effectiveType == "AL")
             {
-                string? balanceError = await CheckAlBalanceAsync(model.EMPCD, model.TOTAL_DAYS);
+                string? balanceError = await CheckAlBalanceAsync(model.EMPCD, model.TOTAL_DAYS, fromDate, toDate);
                 if (balanceError != null)
                     return Ok(new { success = false, message = balanceError });
             }
@@ -1234,14 +1315,16 @@ END;";
                 return Ok(new { success = false, message = "Bạn không có quyền phê duyệt nghỉ phép" });
 
             var requestInfoRows = await _oracleService.ExecuteQueryAsync(@"
-                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE, L.TOTAL_DAYS
+                SELECT L.EMPCD, RR.ROLE_NAME REQ_ROLE, L.LEAVE_TYPE, L.TOTAL_DAYS, L.FROM_DATE, L.TO_DATE
                 FROM HRMS.HR_LEAVE_REQUEST L
                 LEFT JOIN HRMS.HR_USERS UR ON UR.EMPCD = L.EMPCD
                 LEFT JOIN HRMS.HR_ROLES RR ON RR.ID    = UR.ROLE_ID
                 WHERE L.REQUEST_ID = :REQUEST_ID AND ROWNUM = 1",
                 r => new {
                     Empcd = r["EMPCD"]?.ToString(), Role = r["REQ_ROLE"]?.ToString(), LeaveType = r["LEAVE_TYPE"]?.ToString(),
-                    TotalDays = r["TOTAL_DAYS"] == DBNull.Value ? 0m : Convert.ToDecimal(r["TOTAL_DAYS"])
+                    TotalDays = r["TOTAL_DAYS"] == DBNull.Value ? 0m : Convert.ToDecimal(r["TOTAL_DAYS"]),
+                    FromDate  = Convert.ToDateTime(r["FROM_DATE"]),
+                    ToDate    = Convert.ToDateTime(r["TO_DATE"])
                 },
                 new OracleParameter("REQUEST_ID", model.REQUEST_ID));
 
@@ -1265,9 +1348,13 @@ END;";
             // tổng vượt số ngày được cấp — ảnh hưởng lương thật nếu lọt qua ERP.
             if (requestInfo.LeaveType == "AL" && !string.IsNullOrEmpty(requestInfo.Empcd))
             {
-                string? balanceError = await CheckAlBalanceAsync(requestInfo.Empcd, requestInfo.TotalDays);
+                string? balanceError = await CheckAlBalanceAsync(requestInfo.Empcd, requestInfo.TotalDays, requestInfo.FromDate, requestInfo.ToDate);
                 if (balanceError != null)
                     return Ok(new { success = false, message = balanceError + " (đơn khác của NV có thể đã được duyệt trước, làm giảm số ngày còn lại)" });
+
+                string? erpAlError = await CheckErpAcceptsAlAsync(requestInfo.Empcd, requestInfo.FromDate, requestInfo.TotalDays);
+                if (erpAlError != null)
+                    return Ok(new { success = false, message = erpAlError });
             }
 
             int rows = await _oracleService.ExecuteNonQueryAsync(@"
@@ -1655,6 +1742,17 @@ END;";
                     {
                         results.Add(new { empcd = targetEmpcd, success = false, message = "Không thể tự sắp lịch nghỉ cho chính mình" });
                         continue;
+                    }
+
+                    // Phép năm của năm sau: ERP bỏ qua êm nếu NV đã hết phép năm nay (xem CheckErpAcceptsAlAsync)
+                    if (model.LEAVE_TYPE == "AL")
+                    {
+                        string? erpAlError = await CheckErpAcceptsAlAsync(targetEmpcd, fromDate, model.TOTAL_DAYS);
+                        if (erpAlError != null)
+                        {
+                            results.Add(new { empcd = targetEmpcd, success = false, message = erpAlError });
+                            continue;
+                        }
                     }
 
                     // Chặn sắp lịch trùng (bug thật 2026-11-11: bấm Sắp lịch nhiều lần cho cùng NV/
@@ -2394,35 +2492,22 @@ END;";
             if (string.IsNullOrEmpty(empcd))
                 return Ok(new { success = false, message = "Thiếu mã nhân viên" });
 
-            const string sql = @"
-                WITH ALLOC AS (
-                    SELECT MAX(RECEIVE_NUM) AS RECEIVE_NUM
-                    FROM HRMS.EFM100
-                    WHERE EMPCD = :EMPCD
-                      AND SUBSTR(CAL_MONTH,1,4) = TO_CHAR(SYSDATE,'YYYY')
-                ),
-                USED AS (
-                    SELECT COUNT(CASE WHEN LEAVECD IN ('PN','LP') AND REMAR IN ('VR','ASSIGNED') THEN 1 END) AS USED_NUM
-                    FROM HRMS.EFM410
-                    WHERE EMPCD = :EMPCD2
-                      AND TO_CHAR(FR_DAT,'YYYY') = TO_CHAR(SYSDATE,'YYYY')
-                )
-                SELECT NVL(A.RECEIVE_NUM, 0) AS RECEIVE_NUM,
-                       NVL(U.USED_NUM, 0)    AS USED_NUM,
-                       NVL(A.RECEIVE_NUM, 0) - NVL(U.USED_NUM, 0) AS LEFT_NUM
-                FROM ALLOC A, USED U";
-
-            var rows = await _oracleService.ExecuteQueryAsync(sql, r => new
+            // Năm hiện tại (giữ 3 field cũ cho chỗ đang dùng) + YEARS: từng năm, kể cả năm sau (dự kiến),
+            // để màn hình hiện riêng và kiểm tra theo năm của ngày nghỉ.
+            // Năm hiện tại + năm sau (nếu đã mở). Đầu tháng 1 mà job ERP chưa tạo dòng năm mới thì năm hiện
+            // tại chính là "năm sau (dự kiến)" của năm cũ — vẫn hiện được.
+            int nowYear = DateTime.Today.Year;
+            var years = new List<object>();
+            AlYearBalance? cur = null;
+            foreach (var y in new[] { nowYear, nowYear + 1 })
             {
-                RECEIVE_NUM = r["RECEIVE_NUM"] == DBNull.Value ? 0 : Convert.ToInt32(r["RECEIVE_NUM"]),
-                USED_NUM    = r["USED_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["USED_NUM"]),
-                LEFT_NUM    = r["LEFT_NUM"]    == DBNull.Value ? 0 : Convert.ToInt32(r["LEFT_NUM"])
-            },
-            new OracleParameter("EMPCD",  empcd),
-            new OracleParameter("EMPCD2", empcd));
-
-            var row = rows.FirstOrDefault() ?? new { RECEIVE_NUM = 0, USED_NUM = 0, LEFT_NUM = 0 };
-            return Ok(new { success = true, data = row });
+                var b = await GetAlYearBalanceAsync(empcd, y);
+                if (b.Kind is AlYearKind.NotOpen or AlYearKind.Closed) continue;
+                if (y == nowYear) cur = b;
+                years.Add(new { YEAR = b.Year, RECEIVE_NUM = b.Receive, USED_NUM = b.Used, LEFT_NUM = b.Left, ESTIMATED = b.Estimated });
+            }
+            return Ok(new { success = true, data = new {
+                RECEIVE_NUM = cur?.Receive ?? 0, USED_NUM = cur?.Used ?? 0, LEFT_NUM = cur?.Left ?? 0, YEARS = years } });
         }
         catch (Exception ex)
         {

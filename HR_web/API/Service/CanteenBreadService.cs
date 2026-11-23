@@ -123,6 +123,23 @@ public class CanteenBreadService
             : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
     }
 
+    // Số suất cần nấu theo từng món/ngày (bữa trưa + tăng ca) — xem HR_api CanteenBreadController.OrderSummary
+    public async Task<string> OrderSummaryRawAsync(
+        string? from, string? to, string? deptcd, string? linecd, string? workcd, string? clerkEmpcd)
+    {
+        var q = new List<string>();
+        if (!string.IsNullOrEmpty(from))       q.Add($"from={Uri.EscapeDataString(from)}");
+        if (!string.IsNullOrEmpty(to))         q.Add($"to={Uri.EscapeDataString(to)}");
+        if (!string.IsNullOrEmpty(deptcd))     q.Add($"deptcd={Uri.EscapeDataString(deptcd)}");
+        if (!string.IsNullOrEmpty(linecd))     q.Add($"linecd={Uri.EscapeDataString(linecd)}");
+        if (!string.IsNullOrEmpty(workcd))     q.Add($"workcd={Uri.EscapeDataString(workcd)}");
+        if (!string.IsNullOrEmpty(clerkEmpcd)) q.Add($"clerkEmpcd={Uri.EscapeDataString(clerkEmpcd)}");
+        var res = await _api.GetAsync_Raw("CanteenBread/order-summary", string.Join("&", q));
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
+
     // Lấy TOÀN BỘ log (không phân trang) — dùng cho Xuất Excel, cùng bộ filter với GetChangeLog.
     // pageSize lớn để lấy 1 lần thay vì loop nhiều trang.
     public async Task<List<ChangeLogRow>> OrderViewAllAsync(

@@ -836,6 +836,17 @@
         };
     </script>
     @* Thông báo/xác nhận bằng giao diện gốc khi chạy trong app (phải nạp SAU showToast/showConfirm ở trên) *@
+    <script>
+        // iPhone (WebKit, cả app iOS bản cũ): khung .modal nằm sâu trong trang bị xếp DƯỚI lớp nền tối
+        // (.modal-backdrop gắn thẳng ở <body>) → khung chìm, bị thanh tiêu đề che, không bấm được (gặp thật
+        // 21–23/11/2026 ở Duyệt ra cổng, Duyệt lịch nghỉ). Chuyển khung ra thẳng <body> ngay trước khi mở —
+        // đúng khuyến nghị Bootstrap. Bỏ qua khung nằm trong <form> (chuyển ra sẽ tách input khỏi form).
+        document.addEventListener('show.bs.modal', function (e) {
+            var m = e.target;
+            if (m && m.classList && m.classList.contains('modal') && m.parentElement !== document.body && !m.closest('form'))
+                document.body.appendChild(m);
+        }, true);
+    </script>
     <script src="~/js/native-ui.js" asp-append-version="true" data-title="@T("Confirm", "확인")" data-ok="@T("Delete", "삭제")" data-cancel="@T("Cancel", "취소")"></script>
 
     <!-- Logout Modal -->

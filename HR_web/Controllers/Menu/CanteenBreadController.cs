@@ -206,6 +206,17 @@ public class CanteenBreadController : BaseController
         return Content(raw, "application/json");
     }
 
+    // Tổng số suất theo món (căn tin chốt số lượng nấu) — cùng bộ lọc ngày/phòng/chuyền/công đoạn.
+    [HttpGet]
+    public async Task<IActionResult> GetChangeLogSummary(
+        string? from, string? to, string? deptcd, string? linecd, string? workcd)
+    {
+        if (!CanViewLog) return ForbidJson();
+        var clerkEmpcd = CurrentUser?.RoleName == "Clerk" ? CurrentUser?.EmpCd : null;
+        var raw = await _svc.OrderSummaryRawAsync(from, to, deptcd, linecd, workcd, clerkEmpcd);
+        return Content(raw, "application/json");
+    }
+
     // Xoá hàng loạt bản ghi log — chọn từng dòng (Keys) hoặc "chọn tất cả khớp bộ lọc" (Filter).
     // CHỈ Admin/HR (không cho Canteen/Clerk/CSR dù họ xem được log).
     [HttpPost, ValidateAntiForgeryToken]

@@ -122,6 +122,9 @@
             <div class="bg-gradient-warning shadow-warning border-radius-lg pt-3 pb-2 px-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h6 class="text-white mb-0"><i class="bi bi-megaphone-fill me-1"></i>Quản lý bản tin</h6>
                 <div class="d-flex gap-2">
+                    <a href="@Url.Action("Comments", "BulletinAdmin")" class="btn btn-sm btn-white mb-0 d-flex align-items-center">
+                        <i class="bi bi-chat-dots me-1"></i> Bình luận
+                    </a>
                     <a href="@Url.Action("Edit", "BulletinAdmin")" class="btn btn-sm btn-white mb-0 d-flex align-items-center">
                         <i class="bi bi-plus-lg me-1"></i> Thêm bản tin
                     </a>
@@ -256,7 +259,7 @@
                                             </div>
                                         }
                                     </td>
-                                    <td class="text-center d-none d-xl-table-cell blm-stat">👁 @item.VIEW_COUNT · 💬 @item.COMMENT_COUNT</td>
+                                    <td class="text-center d-none d-xl-table-cell blm-stat">👁 @item.VIEW_COUNT · <a href="@Url.Action("Comments", "BulletinAdmin", new { bulletinId = item.ID })" title="Xem bình luận bài này">💬 @item.COMMENT_COUNT</a></td>
                                     <td class="text-end">
                                         @if (isInactive)
                                         {

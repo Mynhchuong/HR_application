@@ -15,6 +15,10 @@ namespace HR_api.Helpers;
 /// </summary>
 public static class DeptRoleHelper
 {
+    /// <summary>HR_DEPT_ROLES.ID từ số này trở lên = phòng ban CHỈ để chọn làm PIC hộp thư (Planning, Kế toán,
+    /// Bảo trì...; yêu cầu 2026-11-23), KHÔNG phải role phòng ban: không hiện / không gán được ở màn gán role.</summary>
+    public const int PicOnlyIdFrom = 100;
+
     private static volatile bool _available;
     private static DateTime _nextProbeUtc = DateTime.MinValue;
     private static readonly TimeSpan ProbeEvery = TimeSpan.FromSeconds(60);

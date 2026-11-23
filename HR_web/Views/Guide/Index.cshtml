@@ -124,6 +124,39 @@
         gap: 3px;
     }
 
+    .guide-card-arrow { display: none; }
+    .guide-card-body { display: contents; }
+
+    /* ── Điện thoại: danh sách dọc bấm cả dòng, nút/ô nhập to, không tràn ngang ── */
+    @@media (max-width: 539px) {
+        .guide-hero { padding: 1rem 1.1rem; margin-bottom: 1rem; border-radius: 16px; }
+        .guide-hero-img { height: 72px; }
+        .applink-card { padding: 1rem; border-radius: 16px; margin-bottom: 1rem; }
+        .applink-head { align-items: flex-start; }
+        .applink-head-text h6 { font-size: .95rem; }
+        .applink-head-text small { font-size: .8rem; line-height: 1.45; display: block; margin-top: 2px; }
+        .applink-note { font-size: .8rem; }
+        .applink-input-row { flex-direction: column; }
+        .applink-input-row input { font-size: 1rem; }
+        .applink-input-row button { min-height: 48px; font-size: .95rem; }
+        .applink-btn-row .applink-btn-primary, .applink-btn-row .applink-btn-ghost { min-height: 46px; font-size: .88rem; }
+        .applink-choice-btns a, .applink-choice-btns button { min-height: 64px; font-size: .85rem; }
+        .applink-link-url { font-size: .82rem; }
+
+        .guide-section-label { font-size: .78rem; margin: 1.1rem 0 .5rem; }
+        .guide-grid { grid-template-columns: 1fr; gap: .5rem; }
+        .guide-card {
+            flex-direction: row; align-items: center; text-align: left;
+            padding: .8rem .9rem; border-radius: 14px; gap: .8rem; min-height: 64px;
+        }
+        .guide-card:active { transform: scale(.98); }
+        .guide-card-icon { width: 42px; height: 42px; margin: 0; flex-shrink: 0; border-radius: 12px; }
+        .guide-card-body { display: flex; flex-direction: column; align-items: flex-start; flex: 1; min-width: 0; }
+        .guide-card-title { font-size: .95rem; line-height: 1.35; }
+        .guide-card-video { font-size: .72rem; }
+        .guide-card-arrow { display: block; color: #94a3b8; font-size: 22px; flex-shrink: 0; }
+    }
+
     /* ── Empty ────────────────────────────────── */
     .guide-empty {
         text-align: center;
@@ -156,7 +189,7 @@
 
     .applink-input-row { display: flex; gap: 8px; }
     .applink-input-row input {
-        flex: 1; border: 1.5px solid var(--guide-border); border-radius: 14px;
+        flex: 1; min-width: 0; border: 1.5px solid var(--guide-border); border-radius: 14px;
         padding: 12px 16px; font-size: .9rem; outline: none; background: var(--guide-bg);
         transition: border-color .15s, background .15s;
     }
@@ -281,8 +314,10 @@
         </div>
         <div class="applink-note">
             <i class="bi bi-wifi-off"></i>
-            Lưu ý: iOS chỉ cài được khi dùng mạng ngoài (4G/Wifi nhà), <strong>không dùng được mạng công ty</strong>.<br />
-            Note: iOS install only works on an external network (mobile data / home Wi-Fi) — <strong>company Wi-Fi will not work</strong>.
+            <div>
+                Lưu ý: iOS chỉ cài được khi dùng mạng ngoài (4G/Wifi nhà), <strong>không dùng được mạng công ty</strong>.<br />
+                Note: iOS install only works on an external network (mobile data / home Wi-Fi) — <strong>company Wi-Fi will not work</strong>.
+            </div>
         </div>
         @Html.AntiForgeryToken()
         <div class="applink-input-row">
@@ -331,13 +366,16 @@
                         <div class="guide-card-icon">
                             <span class="material-symbols-rounded">menu_book</span>
                         </div>
-                        <div class="guide-card-title">@item.TITLE</div>
-                        @if (item.IS_VIDEO == "Y")
-                        {
-                            <div class="guide-card-video">
-                                <i class="bi bi-play-circle-fill"></i> Video
-                            </div>
-                        }
+                        <div class="guide-card-body">
+                            <div class="guide-card-title">@item.TITLE</div>
+                            @if (item.IS_VIDEO == "Y")
+                            {
+                                <div class="guide-card-video">
+                                    <i class="bi bi-play-circle-fill"></i> Video
+                                </div>
+                            }
+                        </div>
+                        <span class="material-symbols-rounded guide-card-arrow">chevron_right</span>
                     </a>
                 }
             </div>

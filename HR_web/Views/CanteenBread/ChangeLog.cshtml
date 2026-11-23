@@ -30,6 +30,24 @@
     .search-wrap i { position:absolute; left:8px; font-size:.75rem; color:#94a3b8; pointer-events:none; }
     .total-badge { background:#eff6ff; color:#1d4ed8; font-size:.75rem; font-weight:700; padding:3px 10px; border-radius:20px; }
 
+    /* Tổng hợp số suất (căn tin chốt số lượng nấu) */
+    .sum-wrap { margin: 0 1.5rem .75rem; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+    .sum-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; flex-wrap:wrap;
+                padding:.55rem .9rem; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .sum-head h6 { margin:0; font-size:.85rem; font-weight:800; color:#0f172a; }
+    .sum-note { font-size:.72rem; color:#64748b; }
+    .sum-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+    .sum-table th { font-size:.68rem; text-transform:uppercase; letter-spacing:.03em; color:#64748b; font-weight:800;
+                    padding:.45rem .6rem; text-align:right; background:#fff; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
+    .sum-table th:first-child, .sum-table td:first-child { text-align:left; }
+    .sum-table td { padding:.45rem .6rem; text-align:right; border-bottom:1px solid #f8fafc; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .sum-table tr:last-child td { border-bottom:none; }
+    .sum-table td.tot { font-weight:800; color:#0f172a; }
+    .sum-day { font-weight:700; color:#334155; }
+    .sum-meal { font-size:.72rem; color:#64748b; display:block; }
+    .sum-leave { color:#b91c1c; }
+    .sum-scroll { overflow-x:auto; }
+
     @@media (max-width:576px) {
         .filter-bar { flex-wrap:wrap !important; }
         .filter-select { min-width:0 !important; flex:1 1 45%; }
@@ -87,6 +105,19 @@
             <input type="file" id="changelogImportFile" accept=".xlsx,.xls" class="d-none" onchange="submitChangeLogImport(this.files[0])" />
 }
             <span id="totalBadge" class="total-badge ms-1" style="display:none;"></span>
+        </div>
+
+        <div class="sum-wrap" id="sumWrap">
+            <div class="sum-head">
+                <h6><i class="bi bi-calculator me-1"></i>Số suất cần nấu</h6>
+                <span class="sum-note">Bữa trưa: NV đang làm − người nghỉ (ERP), chưa đổi món = Mặn · Đã gồm đăng ký dài hạn · Bỏ Chủ nhật</span>
+            </div>
+            <div class="sum-scroll">
+                <table class="sum-table">
+                    <thead><tr><th>Ngày</th><th>🍖 Mặn</th><th>🥗 Nhẹ</th><th>🥦 Chay</th><th>🥐 Bánh</th><th>Tổng</th><th>Nghỉ (đã trừ)</th></tr></thead>
+                    <tbody id="sumBody"><tr><td colspan="7" class="cl-loading"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr></tbody>
+                </table>
+            </div>
         </div>
 
 @if (canBulkEdit)
@@ -223,7 +254,55 @@ async function onLineChange() {
     } catch { /* ignore */ }
 }
 
+// Ngày theo giờ máy (VN). Không dùng ISO/UTC: trước 7h sáng sẽ ra ngày hôm qua.
+function localYmd(d = new Date()) {
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+let sumSeq = 0;
+async function loadSummary() {
+    const from = document.getElementById('fFrom').value, to = document.getElementById('fTo').value;
+    const qs = new URLSearchParams();
+    if (from) qs.set('from', from);
+    if (to)   qs.set('to', to);
+    for (const [k, id] of [['deptcd','fDept'],['linecd','fLine'],['workcd','fWork']]) {
+        const v = document.getElementById(id).value; if (v) qs.set(k, v);
+    }
+    const body = document.getElementById('sumBody');
+    body.innerHTML = '<tr><td colspan="7" class="cl-loading"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+    const my = ++sumSeq;   // bỏ kết quả cũ nếu người dùng bấm Tìm liên tục
+    try {
+        const res = await fetch('GetChangeLogSummary?' + qs.toString());
+        const d = await res.json();
+        if (my !== sumSeq) return;
+        if (!d.success) { body.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-3">${esc(d.message || 'Lỗi')}</td></tr>`; return; }
+        if (!d.data || !d.data.length) { body.innerHTML = '<tr><td colspan="7" class="text-center text-secondary py-3">Không có dữ liệu (Chủ nhật được bỏ qua)</td></tr>'; return; }
+        const n = v => (v || 0).toLocaleString('vi-VN');
+        const wd = ['CN','T2','T3','T4','T5','T6','T7'];
+        const tot = { lunch:{M:0,N:0,C:0,B:0,total:0}, leave:0 };
+        const row = (label, sub, m, leave, bg) => `<tr${bg ? ' style="background:#f8fafc"' : ''}>
+            <td><span class="sum-day">${label}</span><span class="sum-meal">${sub}</span></td>
+            <td>${n(m.M)}</td><td>${n(m.N)}</td><td>${n(m.C)}</td><td>${n(m.B)}</td>
+            <td class="tot">${n(m.total)}</td><td class="sum-leave">${leave == null ? '' : n(leave)}</td></tr>`;
+        let html = '';
+        for (const x of d.data) {
+            const dt = new Date(+x.dat.slice(0,4), +x.dat.slice(4,6) - 1, +x.dat.slice(6,8));
+            html += row(`${wd[dt.getDay()]} ${x.dat.slice(6,8)}/${x.dat.slice(4,6)}`, '🍱 Bữa trưa', x.lunch, x.leave);
+            for (const k of ['M','N','C','B','total']) { tot.lunch[k] += x.lunch[k]; }
+            tot.leave += x.leave;
+        }
+        if (d.data.length > 1) {
+            html += row('Cộng', '🍱 Bữa trưa', tot.lunch, tot.leave, true);
+        }
+        body.innerHTML = html;
+    } catch {
+        if (my === sumSeq) body.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">Lỗi kết nối</td></tr>';
+    }
+}
+
 async function doSearch(page = 1) {
+    if (page === 1) loadSummary();   // đổi bộ lọc → tính lại; chỉ chuyển trang thì giữ nguyên
     currentPage = page;
     const from     = document.getElementById('fFrom').value;
     const to       = document.getElementById('fTo').value;
@@ -343,7 +422,7 @@ function renderPagination() {
     const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
     const start = (currentPage - 1) * PAGE_SIZE + 1;
     const end   = Math.min(currentPage * PAGE_SIZE, totalRecords);
-    $count.innerHTML = `${start}–${end} / <strong>${totalRecords}</strong> bản ghi`;
+    $count.innerHTML = `${start}–${end} / <strong>${totalRecords}</strong> bản ghi · Trang ${currentPage}/${totalPages}`;
 
     const mk = (label, p, disabled, active) => {
         const li = document.createElement('li');
@@ -357,14 +436,16 @@ function renderPagination() {
     };
 
     $bar.innerHTML = '';
+    $bar.appendChild(mk('&laquo;', 1, currentPage <= 1, false));
     $bar.appendChild(mk('&lsaquo;', currentPage - 1, currentPage <= 1, false));
     const from = Math.max(1, currentPage - 2), to = Math.min(totalPages, currentPage + 2);
     for (let p = from; p <= to; p++) $bar.appendChild(mk(p, p, false, p === currentPage));
     $bar.appendChild(mk('&rsaquo;', currentPage + 1, currentPage >= totalPages, false));
+    $bar.appendChild(mk('&raquo;', totalPages, currentPage >= totalPages, false));
 }
 
 function resetFilter() {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localYmd();
     document.getElementById('fFrom').value = todayStr;
     document.getElementById('fTo').value   = todayStr;
     document.getElementById('fEmp').value  = '';
@@ -567,8 +648,8 @@ async function submitChangeLogImport(file) {
     }
 }
 
-// Init: set default date range (TODAY)
-const todayStr = new Date().toISOString().split('T')[0];
+// Init: set default date range (TODAY, giờ VN)
+const todayStr = localYmd();
 document.getElementById('fFrom').value = todayStr;
 document.getElementById('fTo').value   = todayStr;
 

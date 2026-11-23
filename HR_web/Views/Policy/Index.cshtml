@@ -121,6 +121,26 @@
         font-size: .82rem; font-weight: 700; color: #1e293b; line-height: 1.3;
     }
 
+    .pp-card-arrow { display: none; }
+
+    /* ── Điện thoại: danh sách dọc, bấm cả dòng (công nhân khó thao tác với ô lưới 2 cột) ── */
+    @@media (max-width: 539px) {
+        .pp-hero { padding: 1rem 1.1rem; margin-bottom: 1rem; border-radius: 16px; }
+        .pp-hero-img { height: 78px; }
+        .pp-search input { font-size: 1rem; padding-top: .8rem; padding-bottom: .8rem; }
+        .pp-search .s-clear { width: 40px; height: 40px; right: .2rem; display: none; align-items: center; justify-content: center; }
+        .pp-section-label { font-size: .78rem; margin: 1.1rem 0 .5rem; }
+        .pp-grid { grid-template-columns: 1fr; gap: .5rem; }
+        .pp-card {
+            flex-direction: row; align-items: center; text-align: left;
+            padding: .8rem .9rem; border-radius: 14px; gap: .8rem; min-height: 64px;
+        }
+        .pp-card:active { transform: scale(.98); }
+        .pp-card-icon { width: 42px; height: 42px; margin: 0; flex-shrink: 0; border-radius: 12px; }
+        .pp-card-title { font-size: .95rem; line-height: 1.35; flex: 1; min-width: 0; }
+        .pp-card-arrow { display: block; color: #94a3b8; font-size: 22px; flex-shrink: 0; }
+    }
+
     /* ── Empty ────────────────────────────────── */
     .pp-empty { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
     .pp-empty img { height: 110px; width: auto; margin-bottom: .75rem; opacity: .85; }
@@ -190,6 +210,7 @@
                             <span class="material-symbols-rounded">description</span>
                         </div>
                         <div class="pp-card-title">@tg.Key</div>
+                        <span class="material-symbols-rounded pp-card-arrow">chevron_right</span>
                     </a>
                 }
                 </div>
@@ -202,7 +223,7 @@
 <script>
     function ppDoSearch(q) {
         q = q.trim().toLowerCase();
-        document.getElementById('ppClear').style.display = q ? 'block' : 'none';
+        document.getElementById('ppClear').style.display = q ? 'flex' : 'none';
 
         const cards = document.querySelectorAll('.pp-card');
         let total = 0;

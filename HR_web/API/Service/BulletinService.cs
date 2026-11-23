@@ -49,6 +49,21 @@ public class BulletinService
         return r?.success == true ? r.data ?? new() : new();
     }
 
+    // Mọi bình luận của mọi bản tin, mới nhất trước (trang BulletinAdmin/Comments). Trả JSON thô cho JS.
+    public async Task<string> GetCommentFeedRawAsync(string? loginUser, int? bulletinId, string? filter,
+                                                     string? search, int page, int pageSize)
+    {
+        var q = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrWhiteSpace(loginUser)) q.Add("login_user=" + Uri.EscapeDataString(loginUser));
+        if (bulletinId > 0)                         q.Add("bulletinId=" + bulletinId);
+        if (!string.IsNullOrWhiteSpace(filter))    q.Add("filter=" + Uri.EscapeDataString(filter));
+        if (!string.IsNullOrWhiteSpace(search))    q.Add("search=" + Uri.EscapeDataString(search));
+        var res = await _api.GetAsync_Raw("bulletin/admin/comment-feed", string.Join("&", q));
+        return res?.IsSuccessStatusCode == true
+            ? await res.Content.ReadAsStringAsync()
+            : "{\"success\":false,\"message\":\"Lỗi kết nối server\"}";
+    }
+
     public async Task<int> GetUnreadCountAsync(string empcd)
     {
         try

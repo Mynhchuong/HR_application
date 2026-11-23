@@ -561,6 +561,172 @@ public class BulletinController : ControllerBase
     }
 
     // ═════════════════════════════════════════════════════════════════════════
+    // 11b. COMMENT FEED (admin) — mọi bình luận của mọi bản tin trên 1 trang, mới nhất trước,
+    //      để HR/CSR kiểm tra & trả lời nhanh thay vì mở từng bài (yêu cầu 2026-11-23).
+    //      filter=unreplied: bình luận gốc chưa có ai trả lời. Phạm vi bài theo role như admin/list
+    //      (Lean chỉ thấy bài role mình; không truyền login_user = thấy hết).
+    // ═════════════════════════════════════════════════════════════════════════
+    [HttpGet("admin/comment-feed")]
+    public async Task<IActionResult> GetCommentFeed(
+        [FromQuery] string? login_user = null, [FromQuery] int? bulletinId = null,
+        [FromQuery] string? filter = null, [FromQuery] string? search = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 30)
+    {
+        try
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 10, 100);
+
+            // Bài được xem (đang hoạt động) + lọc theo role tạo bài cho Lean
+            var buls = await _oracleService.ExecuteQueryAsync(
+                // Chỉ bài CÒN HẠN đang hiện cho nhân viên (bài hết hạn không bình luận được nữa, khỏi xem)
+                @"SELECT ID, INST_ID FROM HRMS.HR_BULLETIN
+                  WHERE IS_ACTIVE = 1 AND IS_PUBLISHED = 1
+                    AND PUBLISH_FROM <= SYSDATE AND TRUNC(PUBLISH_TO) >= TRUNC(SYSDATE)",
+                r => (Id: Convert.ToInt32(r["ID"]), InstId: r["INST_ID"]?.ToString() ?? ""));
+            if (!string.IsNullOrWhiteSpace(login_user))
+            {
+                var viewer = await TrainingScopeHelper.GetViewerRolesAsync(_oracleService, login_user);
+                if (viewer != null)
+                {
+                    var roleByCreator = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    var keep = new List<(int Id, string InstId)>();
+                    foreach (var b in buls)
+                    {
+                        if (!roleByCreator.TryGetValue(b.InstId, out var role))
+                            roleByCreator[b.InstId] = role = await TrainingScopeHelper.GetCreatorRoleAsync(_oracleService, b.InstId);
+                        if (viewer.Contains(role ?? "HR")) keep.Add(b);
+                    }
+                    buls = keep;
+                }
+            }
+            var ids = buls.Select(b => b.Id).Where(id => bulletinId == null || id == bulletinId).ToList();
+            if (ids.Count == 0)
+                return Ok(new { success = true, total = 0, all = 0, unreplied = 0, today = 0, page, pageSize, data = new List<object>() });
+
+            var ps = new List<OracleParameter>();
+            string inList = string.Join(",", ids.Select((id, i) => { ps.Add(new OracleParameter("B" + i, id)); return ":B" + i; }));
+            // Chỉ BÌNH LUẬN CHÍNH (gốc) — câu trả lời nằm bên trong từng bình luận chính, không lặp lại thành dòng riêng
+            var where = new List<string> { $"C.BULLETIN_ID IN ({inList})", "C.IS_DELETED = 0", "C.PARENT_ID IS NULL" };
+            if (filter == "unreplied")
+                where.Add(@"NOT EXISTS (SELECT 1 FROM HRMS.HR_BULLETIN_COMMENT R
+                                WHERE R.PARENT_ID = C.ID AND R.IS_DELETED = 0)");
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                // Khớp ở bình luận chính HOẶC ở một câu trả lời bên trong
+                where.Add(@"(UPPER(C.CONTENT) LIKE :Q OR C.EMPCD LIKE :Q2 OR UPPER(U.FULL_NAME) LIKE :Q3
+                             OR EXISTS (SELECT 1 FROM HRMS.HR_BULLETIN_COMMENT R WHERE R.PARENT_ID = C.ID AND R.IS_DELETED = 0
+                                        AND (UPPER(R.CONTENT) LIKE :Q4 OR R.EMPCD LIKE :Q5)))");
+                var q = "%" + search.Trim().ToUpperInvariant() + "%";
+                ps.Add(new OracleParameter("Q", q)); ps.Add(new OracleParameter("Q2", "%" + search.Trim() + "%")); ps.Add(new OracleParameter("Q3", q));
+                ps.Add(new OracleParameter("Q4", q)); ps.Add(new OracleParameter("Q5", "%" + search.Trim() + "%"));
+            }
+            string whereSql = string.Join(" AND ", where);
+            OracleParameter[] Clone() => ps.Select(p => new OracleParameter(p.ParameterName, p.Value)).ToArray();
+
+            // Đếm: tổng theo bộ lọc, số bình luận gốc chưa ai trả lời, số bình luận hôm nay (trong phạm vi bài)
+            var cnt = (await _oracleService.ExecuteQueryAsync($@"
+                SELECT COUNT(*) TOTAL FROM HRMS.HR_BULLETIN_COMMENT C
+                LEFT JOIN HRMS.HR_USERS U ON U.EMPCD = C.EMPCD
+                WHERE {whereSql}", r => Convert.ToInt32(r["TOTAL"]), Clone())).FirstOrDefault();
+            var stat = (await _oracleService.ExecuteQueryAsync($@"
+                SELECT SUM(CASE WHEN C.PARENT_ID IS NULL AND NOT EXISTS (SELECT 1 FROM HRMS.HR_BULLETIN_COMMENT R
+                                 WHERE R.PARENT_ID = C.ID AND R.IS_DELETED = 0) THEN 1 ELSE 0 END) UNREP,
+                       SUM(CASE WHEN C.INST_DT >= TRUNC(SYSDATE) THEN 1 ELSE 0 END) TODAY,
+                       COUNT(*) ALLCNT
+                FROM HRMS.HR_BULLETIN_COMMENT C
+                WHERE C.BULLETIN_ID IN ({inList}) AND C.IS_DELETED = 0",
+                r => (Unrep: r["UNREP"] == DBNull.Value ? 0 : Convert.ToInt32(r["UNREP"]),
+                      Today: r["TODAY"] == DBNull.Value ? 0 : Convert.ToInt32(r["TODAY"]),
+                      All:   Convert.ToInt32(r["ALLCNT"])),
+                ps.Where(p => p.ParameterName.StartsWith("B")).Select(p => new OracleParameter(p.ParameterName, p.Value)).ToArray()))
+                .FirstOrDefault();
+
+            var dataParams = Clone().ToList();
+            dataParams.Add(new OracleParameter("LIM", page * pageSize));
+            dataParams.Add(new OracleParameter("OFF", (page - 1) * pageSize));
+            var rows = await _oracleService.ExecuteQueryAsync($@"
+                SELECT * FROM (
+                    SELECT q.*, ROWNUM RN FROM (
+                        SELECT C.ID, C.BULLETIN_ID, C.PARENT_ID, C.EMPCD, C.CONTENT, C.INST_DT,
+                               U.FULL_NAME, EC.CNAME EMP_CNAME, BL.TITLE,
+                               (SELECT MAX(A.DEPTNM) FROM HRMS.EAM410 A WHERE A.DEPTCD = EC.DEPTCD) DEPT_NAME,
+                               (SELECT COUNT(*) FROM HRMS.HR_BULLETIN_COMMENT R WHERE R.PARENT_ID = C.ID AND R.IS_DELETED = 0) REPLY_COUNT,
+                               NULL PARENT_CONTENT, NULL PARENT_EMPCD, NULL PARENT_NAME,
+                               -- Hoạt động mới nhất của cả chuỗi (bình luận chính hoặc câu trả lời mới nhất)
+                               GREATEST(C.INST_DT, NVL((SELECT MAX(R.INST_DT) FROM HRMS.HR_BULLETIN_COMMENT R
+                                                        WHERE R.PARENT_ID = C.ID AND R.IS_DELETED = 0), C.INST_DT)) LAST_DT
+                        FROM HRMS.HR_BULLETIN_COMMENT C
+                        JOIN HRMS.HR_BULLETIN BL ON BL.ID = C.BULLETIN_ID
+                        LEFT JOIN HRMS.HR_USERS U  ON U.EMPCD  = C.EMPCD
+                        LEFT JOIN HRMS.ECM100   EC ON EC.EMPCD = C.EMPCD
+                        WHERE {whereSql}
+                        ORDER BY LAST_DT DESC, C.ID DESC
+                    ) q WHERE ROWNUM <= :LIM
+                ) WHERE RN > :OFF",
+                r => new
+                {
+                    id            = Convert.ToInt32(r["ID"]),
+                    bulletinId    = Convert.ToInt32(r["BULLETIN_ID"]),
+                    bulletinTitle = r["TITLE"]?.ToString(),
+                    parentId      = r["PARENT_ID"] == DBNull.Value ? (int?)null : Convert.ToInt32(r["PARENT_ID"]),
+                    empcd         = r["EMPCD"]?.ToString(),
+                    fullName      = r["FULL_NAME"] == DBNull.Value ? null : r["FULL_NAME"].ToString(),
+                    empCname      = r["EMP_CNAME"] == DBNull.Value ? null : r["EMP_CNAME"].ToString(),
+                    deptName      = r["DEPT_NAME"] == DBNull.Value ? null : r["DEPT_NAME"].ToString(),
+                    content       = r["CONTENT"]?.ToString(),
+                    instDt        = Convert.ToDateTime(r["INST_DT"]),
+                    replyCount    = Convert.ToInt32(r["REPLY_COUNT"]),
+                    parentContent = r["PARENT_CONTENT"] == DBNull.Value ? null : r["PARENT_CONTENT"].ToString(),
+                    parentName    = r["PARENT_NAME"] == DBNull.Value ? r["PARENT_EMPCD"]?.ToString() : r["PARENT_NAME"].ToString()
+                },
+                dataParams.ToArray());
+
+            // Câu trả lời của các bình luận gốc trên trang này (cũ → mới) — để biết đã có ai trả lời chưa
+            var rootIds = rows.Where(x => x.parentId == null && x.replyCount > 0).Select(x => x.id).ToList();
+            var replies = new Dictionary<int, List<object>>();
+            if (rootIds.Count > 0)
+            {
+                var rp = rootIds.Select((id, i) => new OracleParameter("R" + i, id)).ToArray();
+                var rlist = await _oracleService.ExecuteQueryAsync($@"
+                    SELECT C.ID, C.PARENT_ID, C.EMPCD, C.CONTENT, C.INST_DT, U.FULL_NAME, EC.CNAME EMP_CNAME,
+                           (SELECT MAX(A.DEPTNM) FROM HRMS.EAM410 A WHERE A.DEPTCD = EC.DEPTCD) DEPT_NAME
+                    FROM HRMS.HR_BULLETIN_COMMENT C
+                    LEFT JOIN HRMS.HR_USERS U  ON U.EMPCD  = C.EMPCD
+                    LEFT JOIN HRMS.ECM100   EC ON EC.EMPCD = C.EMPCD
+                    WHERE C.PARENT_ID IN ({string.Join(",", rp.Select(p => ":" + p.ParameterName))}) AND C.IS_DELETED = 0
+                    ORDER BY C.INST_DT, C.ID",
+                    r => (Parent: Convert.ToInt32(r["PARENT_ID"]), Item: (object)new
+                    {
+                        id      = Convert.ToInt32(r["ID"]),
+                        empcd   = r["EMPCD"]?.ToString(),
+                        name    = r["FULL_NAME"] == DBNull.Value ? (r["EMP_CNAME"] == DBNull.Value ? null : r["EMP_CNAME"].ToString()) : r["FULL_NAME"].ToString(),
+                        dept    = r["DEPT_NAME"] == DBNull.Value ? null : r["DEPT_NAME"].ToString(),
+                        content = r["CONTENT"]?.ToString(),
+                        instDt  = Convert.ToDateTime(r["INST_DT"])
+                    }), rp);
+                foreach (var (parent, item) in rlist)
+                {
+                    if (!replies.TryGetValue(parent, out var l)) replies[parent] = l = new List<object>();
+                    l.Add(item);
+                }
+            }
+            var data = rows.Select(x => new
+            {
+                x.id, x.bulletinId, x.bulletinTitle, x.parentId, x.empcd, x.fullName, x.empCname, x.deptName,
+                x.content, x.instDt, x.replyCount, x.parentContent, x.parentName,
+                replies = replies.TryGetValue(x.id, out var l) ? l : new List<object>()
+            });
+
+            return Ok(new { success = true, total = cnt, all = stat.All, unreplied = stat.Unrep, today = stat.Today, page, pageSize, data });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new { success = false, message = ex.Message });
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
     // 12. COMMENT ADD  — validate length, rate limit 5/phút/empcd
     // ═════════════════════════════════════════════════════════════════════════
     [HttpPost("comment/add")]

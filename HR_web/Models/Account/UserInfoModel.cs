@@ -18,6 +18,8 @@ public class UserInfoModel
     public string? DeptRoleName { get; set; }
     /// <summary>true = phòng ban bị chặn khỏi "Báo máy sản xuất" (TPM) — HR_api tính lúc đăng nhập (Tpm:BlockedDeptCodes, mặc định OFFICE STAFF).</summary>
     public bool TpmBlocked { get; set; }
+    /// <summary>true = thẻ nằm trong danh sách công nhân bảo trì (HR_TPM_MAINT) — HR_api tính lúc đăng nhập; hiện menu "Xử lý phiếu báo hư".</summary>
+    public bool TpmMaintenance { get; set; }
     /// <summary>Ngôn ngữ giao diện: "vi" (mọi role thường) | "en" | "ko" (chỉ Expat). HR_api tính lúc đăng nhập từ
     /// ECM100.NATION, NV bấm đổi tay thì lưu HR_USERS.LANG_PREF. Dùng để chọn _LayoutExpat + chuỗi hiển thị.</summary>
     public string Lang { get; set; } = "vi";

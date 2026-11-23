@@ -19,6 +19,24 @@ public class TpmLocationReportBody
     public string? Note { get; set; }
 }
 
+/// <summary>Body PUT apiHR/Tpm/maintenance/repair — "Sửa xong" phiếu báo hư (bảo trì). itemCode bắt buộc: quét lại để xác nhận đúng máy.</summary>
+public class TpmRepairBody
+{
+    public string? Empcd { get; set; }
+    public long? BrokenId { get; set; }
+    public string? ItemCode { get; set; }
+    public long? IssueId { get; set; }
+    public long? SolveGroupId { get; set; }
+    public string? RepairNote { get; set; }
+}
+
+/// <summary>Body PUT apiHR/Tpm/maintenance/receive — bảo trì "Nhận" phiếu.</summary>
+public class TpmReceiveBody
+{
+    public string? Empcd { get; set; }
+    public long? BrokenId { get; set; }
+}
+
 /// <summary>Người dùng đã tra từ DB HR (ECM100 + EAM410 + HR_USERS) để gửi sang TPM.</summary>
 public class TpmEmployee
 {

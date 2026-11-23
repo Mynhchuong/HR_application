@@ -75,9 +75,11 @@ public static class SideMenuBuilder
                 Id = "Maintenance",
                 Title = "Bảo trì",
                 Icon = "build",
-                VisibleWhen = () => !isExpat && !isCanteen && !user.HasRole("HR") && !user.TpmBlocked,   // TpmBlocked: phòng ban OFFICE STAFF (khối văn phòng)
+                // TpmBlocked: phòng ban OFFICE STAFF (khối văn phòng). Công nhân bảo trì (TpmMaintenance) luôn thấy nhóm này.
+                VisibleWhen = () => user.TpmMaintenance || (!isExpat && !isCanteen && !user.HasRole("HR") && !user.TpmBlocked),
                 Children = new List<SideMenuItem>
                 {
+                    new SideMenuItem { Title = "Xử lý phiếu báo hư", Url = "~/Tpm/Maintenance", Icon = "build_circle", VisibleWhen = () => user.TpmMaintenance },
                     new SideMenuItem { Title = "Báo máy sản xuất", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner" },
                     new SideMenuItem { Title = "Lịch sử báo máy",  Url = "~/Tpm/History", Icon = "history"         },
                 }

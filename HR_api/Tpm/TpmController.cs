@@ -99,11 +99,79 @@ public class TpmController : ControllerBase
         return Relay(await _tpm.CallAsync(HttpMethod.Get, path));
     }
 
+    // ───────── Bảo trì dùng My Samho (tích hợp 3): chỉ thẻ trong HR_TPM_MAINT; TPM tự tra TPM_USER theo EmpCd và trả 401/403
+    // nếu không có quyền → chuyển nguyên body để HR_web đọc `code`.
+
+    // GET apiHR/Tpm/maintenance/areas?empcd=   (200 = là bảo trì; 401/403 = không có quyền ở TPM)
+    [HttpGet("maintenance/areas")]
+    public async Task<IActionResult> MaintAreas(string? empcd)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        return Relay(await _tpm.CallAsync(HttpMethod.Get, $"/api/mysamho/maintenance/areas?empCd={Uri.EscapeDataString(emp.EmpCd)}"));
+    }
+
+    // GET apiHR/Tpm/maintenance/broken?empcd=&myAreaOnly=true|false
+    [HttpGet("maintenance/broken")]
+    public async Task<IActionResult> MaintBroken(string? empcd, bool myAreaOnly = true)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        return Relay(await _tpm.CallAsync(HttpMethod.Get,
+            $"/api/mysamho/maintenance/broken?empCd={Uri.EscapeDataString(emp.EmpCd)}&myAreaOnly={(myAreaOnly ? "true" : "false")}"));
+    }
+
+    // PUT apiHR/Tpm/maintenance/receive  body { empcd, brokenId }
+    [HttpPut("maintenance/receive")]
+    public async Task<IActionResult> MaintReceive([FromBody] TpmReceiveBody body)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(body?.Empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        if (body!.BrokenId is not > 0) return Ok(new { success = false, message = "Thiếu mã phiếu." });
+        return Relay(await _tpm.CallAsync(HttpMethod.Put, $"/api/mysamho/maintenance/broken/{body.BrokenId}/receive", new { EmpCd = emp.EmpCd }));
+    }
+
+    // PUT apiHR/Tpm/maintenance/repair  body { empcd, brokenId, itemCode, issueId?, solveGroupId?, repairNote? }
+    [HttpPut("maintenance/repair")]
+    public async Task<IActionResult> MaintRepair([FromBody] TpmRepairBody body)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(body?.Empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        if (body!.BrokenId is not > 0) return Ok(new { success = false, message = "Thiếu mã phiếu." });
+        if (string.IsNullOrWhiteSpace(body.ItemCode)) return Ok(new { success = false, code = "MISSING_ITEM_CODE", message = "Cần quét/nhập lại mã máy để xác nhận." });
+        return Relay(await _tpm.CallAsync(HttpMethod.Put, $"/api/mysamho/maintenance/broken/{body.BrokenId}/repair", new
+        {
+            EmpCd = emp.EmpCd,
+            ItemCode = body.ItemCode.Trim(),
+            IssueId = body.IssueId,
+            SolveGroupId = body.SolveGroupId,
+            RepairNote = string.IsNullOrWhiteSpace(body.RepairNote) ? null : body.RepairNote.Trim(),
+        }));
+    }
+
+    // GET apiHR/Tpm/maintenance/issues?empcd=   |   GET apiHR/Tpm/maintenance/solve-groups?empcd=   (dropdown của màn Sửa xong)
+    [HttpGet("maintenance/issues")]
+    public async Task<IActionResult> MaintIssues(string? empcd)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        return Relay(await _tpm.CallAsync(HttpMethod.Get, "/api/mysamho/maintenance/issues"));
+    }
+
+    [HttpGet("maintenance/solve-groups")]
+    public async Task<IActionResult> MaintSolveGroups(string? empcd)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        return Relay(await _tpm.CallAsync(HttpMethod.Get, "/api/mysamho/maintenance/solve-groups"));
+    }
+
     // HR_api trả 200 + success=false cho lỗi nghiệp vụ; TPM trả 4xx kèm body cùng dạng nên chuyển
     // nguyên body (kể cả lỗi) để app đọc `code`.
     private IActionResult Relay((bool reached, int status, string body) r)
     {
-        if (!r.reached || string.IsNullOrWhiteSpace(r.body)) return Ok(Unavailable);
+        // TPM/IIS lỗi 5xx thường trả trang HTML (không phải JSON) → coi như không khả dụng, đừng đẩy HTML xuống app.
+        if (!r.reached || string.IsNullOrWhiteSpace(r.body) || r.status >= 500 || r.body.TrimStart().StartsWith('<')) return Ok(Unavailable);
         return Content(r.body, "application/json");
     }
 }

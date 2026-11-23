@@ -66,7 +66,8 @@ public class TpmService
             return (null, "Chức năng này dành cho công nhân sản xuất.");
 
         // Phòng ban bị chặn (mặc định OFFICE STAFF = A01001, khối văn phòng) — xem TpmAccess.cs (2026-10-27).
-        if (TpmAccess.IsDeptBlocked(_cfg, u.DeptCd))
+        // Công nhân bảo trì (danh sách HR_TPM_MAINT) được miễn dù thẻ thuộc khối văn phòng.
+        if (TpmAccess.IsDeptBlocked(_cfg, u.DeptCd) && !await TpmAccess.IsMaintenanceAsync(_db, empcd))
             return (null, "Chức năng này không dành cho khối văn phòng.");
 
         // Role dept HR (người thuộc phòng nhân sự dù role chính là Manager/Supervisor/Worker...) cũng bị chặn
@@ -81,6 +82,15 @@ public class TpmService
             LineCd = u.LineCd, LineNm = u.LineNm,
             WorkCd = u.WorkCd, WorkNm = u.WorkNm,
         }, null);
+    }
+
+    /// <summary>Như ResolveEmployeeAsync nhưng bắt buộc thẻ nằm trong danh sách công nhân bảo trì (HR_TPM_MAINT).</summary>
+    public async Task<(TpmEmployee? emp, string? error)> ResolveMaintenanceAsync(string? empcd)
+    {
+        var (emp, error) = await ResolveEmployeeAsync(empcd);
+        if (emp == null) return (null, error);
+        if (!await TpmAccess.IsMaintenanceAsync(_db, emp.EmpCd)) return (null, "Chức năng này dành cho công nhân bảo trì.");
+        return (emp, null);
     }
 
     /// <summary>Gọi TPM.API. Trả (true, status, bodyJson) nếu TPM trả lời (kể cả 4xx — body có

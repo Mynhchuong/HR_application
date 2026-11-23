@@ -204,7 +204,7 @@
     }
 
 
-    // ── Báo vị trí máy sai: chọn lần lượt Nhà → Group → Line → Vị trí (cấp nào có con thì hiện tiếp), tới cấp cuối mới cho gửi.
+    // ── Báo vị trí máy sai: chọn lần lượt Nhà → Group → Line → Vị trí (cấp nào có con thì hiện tiếp); gửi được khi tới Vị trí hoặc chọn "Dùng chính Line này".
     // Chỉ GHI NHẬN — bảo trì xác nhận trên TPM.Web thì vị trí máy mới thật sự đổi.
     let locLeafId = null;
 
@@ -212,13 +212,20 @@
         const r = await fetch(URL_LOCS + (parentId ? '?parentId=' + parentId : ''));
         const d = await r.json();
         if (!d.success) throw new Error(d.message || 'Không tải được danh sách vị trí');
-        return (d.items || d.Items || []).map(i => ({ id: i.Id ?? i.id, nm: i.Nm ?? i.nm }));
+        return (d.items || d.Items || []).map(i => ({ id: i.Id ?? i.id, nm: i.Nm ?? i.nm, level: i.Level ?? i.level }));
     }
 
-    function addLocSelect(items) {
+    // Line (cấp 3) có thể VỪA có Vị trí con VỪA là nơi đặt máy hợp lệ (TPM xác nhận trên DB thật) → ô con của Line có thêm
+    // lựa chọn "Dùng chính Line này". Nhà/Group (cấp 1-2) không đặt máy được nên không có lựa chọn đó.
+    const SELF = 'SELF';
+    function addLocSelect(items, parent) {
         const sel = document.createElement('select');
         sel.className = 'tpm-input mb-2';
-        sel.innerHTML = '<option value="">-- Chọn --</option>' + items.map(i => `<option value="${i.id}">${esc(i.nm)}</option>`).join('');
+        sel._items = items;
+        if (parent) sel.dataset.parentId = parent.id;
+        sel.innerHTML = '<option value="">-- Chọn --</option>'
+            + (parent && parent.level === 3 ? `<option value="${SELF}">Dùng chính ${esc(parent.nm)}</option>` : '')
+            + items.map(i => `<option value="${i.id}">${esc(i.nm)}</option>`).join('');
         sel.onchange = () => onLocChange(sel);
         $('locSelects').appendChild(sel);
     }
@@ -228,10 +235,12 @@
         while (sel.nextElementSibling) sel.nextElementSibling.remove();
         locLeafId = null; $('btnLocSend').disabled = true;
         if (!sel.value) return;
+        if (sel.value === SELF) { locLeafId = parseInt(sel.dataset.parentId, 10); $('btnLocSend').disabled = false; return; }
+        const node = sel._items.find(i => String(i.id) === sel.value);
         try {
             const kids = await fetchLocs(sel.value);
-            if (kids.length) addLocSelect(kids);
-            else { locLeafId = parseInt(sel.value, 10); $('btnLocSend').disabled = false; }   // cấp cuối
+            if (kids.length) addLocSelect(kids, node);
+            else { locLeafId = parseInt(sel.value, 10); $('btnLocSend').disabled = false; }   // hết con = cấp cuối
         } catch (e) { toast(e.message, 'error'); }
     }
 
@@ -248,7 +257,7 @@
     }
 
     async function sendLocation(itemCode) {
-        if (!locLeafId) { toast('Vui lòng chọn vị trí đúng đến cấp cuối', 'error'); return; }
+        if (!locLeafId) { toast('Vui lòng chọn vị trí đúng của máy', 'error'); return; }
         if (!confirm('Xác nhận báo vị trí máy ' + itemCode + ' bị sai?')) return;
         const btn = $('btnLocSend'); btn.disabled = true;
         try {

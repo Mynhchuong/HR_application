@@ -154,6 +154,9 @@ public class AccountController : ControllerBase
 
         UserInfoModel result = null;
 
+        // Công nhân bảo trì (danh sách HRMS.HR_TPM_MAINT): hiện menu Xử lý phiếu báo hư + miễn quy tắc chặn khối văn phòng.
+        bool tpmMaint = await HR_api.Tpm.TpmAccess.IsMaintenanceAsync(_oracleService, empcd);
+
         if (string.IsNullOrEmpty(userCheck.EmpCd))
         {
             // Có trong ERP nhưng CHƯA có trong HR_USERS
@@ -187,7 +190,8 @@ public class AccountController : ControllerBase
                     FullName = userCheck.EcmName,
                     RoleId = 1,
                     RoleName = insertedUser?.RoleName ?? "Nhân viên",
-                    TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd),
+                    TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd) && !tpmMaint,
+                    TpmMaintenance = tpmMaint,
                     IsActive = 1,
                     SIGNATUREBLOB = "N"
                 };
@@ -219,7 +223,8 @@ public class AccountController : ControllerBase
                 RoleId = userCheck.RoleId,
                 RoleName = userCheck.RoleName,
                 DeptRoleName = await DeptRoleHelper.GetDeptRoleNameAsync(_oracleService, userCheck.EmpCd),
-                TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd),
+                TpmBlocked = HR_api.Tpm.TpmAccess.IsDeptBlocked(_config, userCheck.EcmDeptCd) && !tpmMaint,
+                TpmMaintenance = tpmMaint,
                 IsActive = userCheck.IsActive,
                 LastedLogin = userCheck.LastedLogin,
                 SIGNATUREBLOB = userCheck.SignatureBlob,

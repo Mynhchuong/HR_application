@@ -36,6 +36,20 @@ public class TpmService
     public async Task<string> LocationReportRawAsync(object payload)
         => await ReadAsync(await _api.PostAsync("Tpm/location-report", payload));
 
+    // ── Bảo trì dùng My Samho (tích hợp 3) — HR_api chỉ cho thẻ trong HR_TPM_MAINT, TPM quyết quyền thật
+    public async Task<string> MaintBrokenRawAsync(string empcd, bool myAreaOnly)
+        => await ReadAsync(await _api.GetAsync_Raw("Tpm/maintenance/broken",
+            $"empcd={Uri.EscapeDataString(empcd)}&myAreaOnly={(myAreaOnly ? "true" : "false")}"));
+
+    public async Task<string> MaintLookupRawAsync(string kind, string empcd)   // kind: areas | issues | solve-groups
+        => await ReadAsync(await _api.GetAsync_Raw($"Tpm/maintenance/{kind}", $"empcd={Uri.EscapeDataString(empcd)}"));
+
+    public async Task<string> MaintReceiveRawAsync(object payload)
+        => await ReadAsync(await _api.PutAsync_Raw("Tpm/maintenance/receive", payload));
+
+    public async Task<string> MaintRepairRawAsync(object payload)
+        => await ReadAsync(await _api.PutAsync_Raw("Tpm/maintenance/repair", payload));
+
     public async Task<string> ReportRawAsync(object payload)
         => await ReadAsync(await _api.PostAsync("Tpm/report", payload));
 }

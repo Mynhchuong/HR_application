@@ -110,6 +110,7 @@ builder.Services.AddHostedService<HR_api.HostedServices.LeaveApprovalDigestServi
 builder.Services.AddHostedService<HR_api.HostedServices.KaizenWeeklyMailService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryReminderBackgroundService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryEmptyCleanupService>();
+builder.Services.AddHostedService<HR_api.Tpm.TpmMaintSyncService>();   // đồng bộ danh sách công nhân bảo trì từ TPM (HR_TPM_MAINT)
 
 builder.Services.AddCors(options =>
 {

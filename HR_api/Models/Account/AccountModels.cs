@@ -17,6 +17,8 @@ public class UserInfoModel
     public string? DeptRoleName { get; set; }
     /// <summary>true nếu phòng ban của NV bị chặn khỏi "Báo máy sản xuất" (TPM) — xem Tpm/TpmAccess.cs. HR_web dùng để ẩn menu Bảo trì.</summary>
     public bool TpmBlocked { get; set; }
+    /// <summary>true nếu thẻ có trong danh sách công nhân bảo trì (HRMS.HR_TPM_MAINT) — HR_web hiện menu "Xử lý phiếu báo hư".</summary>
+    public bool TpmMaintenance { get; set; }
     /// <summary>Ngôn ngữ giao diện: "vi" (mặc định mọi role) | "en" | "ko" (chỉ role Expat — suy từ ECM100.NATION
     /// lúc login, NV tự đổi được thì lưu HR_USERS.LANG_PREF). Xem Helpers/LangPrefHelper.cs.</summary>
     public string Lang { get; set; } = "vi";

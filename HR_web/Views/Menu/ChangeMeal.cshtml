@@ -280,17 +280,32 @@ function updateOtButtons(currentType) {
 }
 
 // ── Init meal date pickers ───────────────────────────────────────────────────
+// Ngày theo giờ MÁY (Việt Nam) — KHÔNG dùng toISOString(): đó là giờ UTC, từ 0h–7h sáng ra ngày hôm qua
+function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function getTodayStr() { return ymd(new Date()); }
 function getTomorrowStr() {
     const t = new Date();
     t.setDate(t.getDate() + 1);
-    return t.toISOString().split('T')[0];
+    return ymd(t);
 }
 
-(function initMealDate() {
+// Sau giờ chốt (21h) ngày mai đã khoá → tự chọn ngày gần nhất còn đổi được (tối đa 7 ngày tới)
+async function firstOpenDate(typeMeal) {
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    for (let i = 0; i < 7; i++, d.setDate(d.getDate() + 1)) {
+        const info = await checkLock(ymd(d), typeMeal);
+        const typeRestricted = info.lockMan || info.lockNhe || info.lockChay || info.lockBanh;
+        if (!info.locked || typeRestricted) return ymd(d);
+    }
+    return getTomorrowStr();
+}
+
+(async function initMealDate() {
+    await null;   // chờ cả script chạy xong (LOCK_CHECK_URL khai báo phía dưới) rồi mới kiểm tra khoá
     const inp = document.getElementById('mealDate');
     const tStr = getTomorrowStr();
     inp.min   = tStr;
-    inp.value = tStr;
+    inp.value = await firstOpenDate('LUNCH');
     onMealDateChange();
 })();
 
@@ -400,7 +415,7 @@ async function onMealDateChange() {
     const inp   = document.getElementById('mealDate');
     const label = document.getElementById('mealDateLabel');
     const tStr  = getTomorrowStr();
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayStr();
     if (inp.value <= todayStr) {
         inp.value = tStr;
         window.showToast('Chỉ được đổi món từ ngày mai trở đi', 'warning');
@@ -459,7 +474,7 @@ async function onOtDateChange() {
     const label = document.getElementById('otDateLabel');
     const tStr  = getTomorrowStr();
     // iOS Safari bỏ qua min attribute → validate thủ công
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayStr();
     if (inp.value <= todayStr) {
         inp.value = tStr;
         window.showToast('Chỉ được đổi món từ ngày mai trở đi', 'warning');
@@ -498,7 +513,7 @@ function submitMeal(type, label, typeMeal) {
     }
     const dateInputId = typeMeal === 'OT' ? 'otDate' : 'mealDate';
     const dateStr = document.getElementById(dateInputId).value;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getTodayStr();
     if (!dateStr || dateStr <= todayStr) {
         window.showToast('Chỉ được đổi món từ ngày mai trở đi', 'warning');
         return;
@@ -584,7 +599,7 @@ function toggleSpecial(type) {
     ds.classList.toggle('nhe-mode', type === 'NHE_TRUONG');
 
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowStr = ymd(tomorrow);
     document.getElementById('fromDate').value = tomorrowStr;
 }
 

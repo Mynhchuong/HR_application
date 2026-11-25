@@ -129,8 +129,16 @@ public class CanteenOrderController : ControllerBase
                 _                            => "M"
             };
 
-            var from = DateTime.Parse(req.FromDate);
-            var to   = DateTime.Parse(req.ToDate);
+            var from = DateTime.Parse(req.FromDate).Date;
+            var to   = DateTime.Parse(req.ToDate).Date;
+
+            // Chỉ đổi được từ NGÀY MAI trở đi — chặn cả ở server (trước đây chỉ trang web chặn, mà trang web lấy ngày theo
+            // giờ UTC nên từ 0h–7h sáng "ngày mai" trên trang chính là hôm nay → công nhân đổi được món của chính hôm đó).
+            // Khoảng nhiều ngày (đăng ký dài hạn) bắt đầu từ hôm nay thì tự bắt đầu từ ngày mai.
+            var firstAllowed = DateTime.Today.AddDays(1);
+            if (to < firstAllowed)
+                return Ok(new { success = false, code = "PAST_DATE", message = "Chỉ được đổi món từ ngày mai trở đi" });
+            if (from < firstAllowed) from = firstAllowed;
 
             var mealCat = string.IsNullOrEmpty(req.TypeMeal) ? "LUNCH" : req.TypeMeal.ToUpper();
 

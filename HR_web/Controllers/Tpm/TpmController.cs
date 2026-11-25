@@ -36,7 +36,7 @@ public class TpmController : HR_web.Controllers.BaseController
     [HttpGet]
     public async Task<IActionResult> Machine(string? itemCode)
     {
-        if (string.IsNullOrEmpty(Empcd) || !Allowed) return Json(new { success = false, message = "Không có quyền" });
+        if (string.IsNullOrEmpty(Empcd) || !(Allowed || AllowedMaint)) return Json(new { success = false, message = "Không có quyền" });
         if (string.IsNullOrWhiteSpace(itemCode)) return Json(new { success = false, message = "Thiếu mã máy" });
         return Content(await _svc.MachineRawAsync(Empcd, itemCode.Trim()), "application/json");
     }
@@ -55,6 +55,30 @@ public class TpmController : HR_web.Controllers.BaseController
 
     // ───────── Bảo trì dùng My Samho (tích hợp 3): thẻ trong HR_TPM_MAINT (cờ TpmMaintenance lúc đăng nhập); TPM quyết quyền thật.
     private bool AllowedMaint => CurrentUser?.TpmMaintenance == true;
+
+    // GET /Tpm/MachineInfo — bảo trì tra cứu máy (quét/nhập mã): xem thông tin đầy đủ + xử lý phiếu báo hư đang mở của máy (như màn quét của PDA)
+    public IActionResult MachineInfo()
+    {
+        if (!AllowedMaint) return RedirectToAction("Index", "Home");
+        return View();
+    }
+
+    // GET /Tpm/Transfer — bảo trì chuyển vị trí máy hàng loạt
+    public IActionResult Transfer()
+    {
+        if (!AllowedMaint) return RedirectToAction("Index", "Home");
+        return View();
+    }
+
+    // POST /Tpm/MaintTransfer { locationId, itemCodes[] }
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> MaintTransfer([FromBody] MaintTransferBody req)
+    {
+        if (string.IsNullOrEmpty(Empcd) || !AllowedMaint) return Json(new { success = false, message = "Không có quyền" });
+        if (req?.LocationId is not > 0 || req.ItemCodes == null || req.ItemCodes.Count == 0)
+            return Json(new { success = false, message = "Vui lòng chọn vị trí đích và thêm máy cần chuyển" });
+        return Content(await _svc.MaintTransferRawAsync(new { empcd = Empcd, locationId = req.LocationId, itemCodes = req.ItemCodes }), "application/json");
+    }
 
     // GET /Tpm/Maintenance
     public IActionResult Maintenance()
@@ -107,7 +131,7 @@ public class TpmController : HR_web.Controllers.BaseController
     [HttpGet]
     public async Task<IActionResult> Locations(long? parentId)
     {
-        if (string.IsNullOrEmpty(Empcd) || !Allowed) return Json(new { success = false, message = "Không có quyền" });
+        if (string.IsNullOrEmpty(Empcd) || !(Allowed || AllowedMaint)) return Json(new { success = false, message = "Không có quyền" });
         return Content(await _svc.LocationsRawAsync(Empcd, parentId), "application/json");
     }
 
@@ -129,6 +153,12 @@ public class TpmController : HR_web.Controllers.BaseController
     {
         if (string.IsNullOrEmpty(Empcd) || !Allowed) return Json(new { success = false, message = "Không có quyền" });
         return Content(await _svc.HistoryRawAsync(Empcd, status), "application/json");
+    }
+
+    public class MaintTransferBody
+    {
+        public long? LocationId { get; set; }
+        public List<string>? ItemCodes { get; set; }
     }
 
     public class MaintReceiveBody { public long? BrokenId { get; set; } }

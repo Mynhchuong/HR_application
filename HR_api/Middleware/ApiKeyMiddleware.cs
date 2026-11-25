@@ -17,7 +17,10 @@ public class ApiKeyMiddleware
     // thẳng endpoint này — ai giải nén APK/IPA là có key gọi được TOÀN BỘ HR_api từ internet. Key đã đổi; các
     // bản app cũ ngoài kia vẫn gửi key cũ nên endpoint này phải mở không cần key để cơ chế ép cập nhật
     // vẫn chạy. Gọi không có key hợp lệ thì AppVersionController bỏ qua empcd (không trả link riêng của NV).
-    private static readonly string[] SkippedPaths = ["/swagger", "/apiHR/AppVersion/check"];
+    //
+    // /apiHR/Tpm/notify/: webhook TPM -> HR_api (có phiếu báo hư mới). TPM không giữ API key của HR_api; endpoint tự kiểm
+    // khóa nội bộ X-MySamho-Key (Tpm:InternalKey, cùng khóa HR_api dùng gọi TPM) — xem TpmController.NotifyBroken.
+    private static readonly string[] SkippedPaths = ["/swagger", "/apiHR/AppVersion/check", "/apiHR/Tpm/notify/"];
 
     public ApiKeyMiddleware(RequestDelegate next)
     {

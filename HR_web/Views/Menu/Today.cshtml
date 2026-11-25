@@ -387,7 +387,8 @@ function getWeekRangeIso() {
                 : '';
             banner.style.display = 'block';
             banner.innerHTML = `<div class="tp-lock">${window.ic3d('meal-locked')} Đã khoá đổi món hôm nay (${lockedScopes.join(' + ')})${noteLine}</div>`;
-            document.querySelectorAll('.tp-my-btn').forEach(b => b.style.display = 'none');   // khoá rồi thì ẩn nút Đổi món
+            // Hôm nay khoá rồi nhưng vẫn đổi được món cho các ngày sau → giữ nút, đổi chữ cho rõ
+            document.querySelectorAll('.tp-my-btn').forEach(b => b.textContent = 'Đổi món ngày khác');
         } else if (warnScopes.length > 0) {
             const lines = warnScopes.map(w => `${w.sc}: ${escTxt(w.d.reason)}`).join('<br>');
             const note = warnScopes[0].d.note;

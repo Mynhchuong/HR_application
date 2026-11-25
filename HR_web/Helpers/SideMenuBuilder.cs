@@ -79,7 +79,9 @@ public static class SideMenuBuilder
                 VisibleWhen = () => user.TpmMaintenance || (!isExpat && !isCanteen && !user.HasRole("HR") && !user.TpmBlocked),
                 Children = new List<SideMenuItem>
                 {
+                    new SideMenuItem { Title = "Tra cứu máy", Url = "~/Tpm/MachineInfo", Icon = "manage_search", VisibleWhen = () => user.TpmMaintenance },
                     new SideMenuItem { Title = "Xử lý phiếu báo hư", Url = "~/Tpm/Maintenance", Icon = "build_circle", VisibleWhen = () => user.TpmMaintenance },
+                    new SideMenuItem { Title = "Chuyển vị trí máy", Url = "~/Tpm/Transfer", Icon = "move_location", VisibleWhen = () => user.TpmMaintenance },
                     new SideMenuItem { Title = "Báo máy sản xuất", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner" },
                     new SideMenuItem { Title = "Lịch sử báo máy",  Url = "~/Tpm/History", Icon = "history"         },
                 }

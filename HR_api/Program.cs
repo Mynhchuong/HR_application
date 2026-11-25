@@ -113,7 +113,9 @@ builder.Services.AddHostedService<HR_api.HostedServices.KaizenWeeklyMailService>
 builder.Services.AddHostedService<HR_api.HostedServices.CanteenDailyMailHostedService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryReminderBackgroundService>();
 builder.Services.AddHostedService<HR_api.HostedServices.InquiryEmptyCleanupService>();
-builder.Services.AddHostedService<HR_api.Tpm.TpmMaintSyncService>();   // đồng bộ danh sách công nhân bảo trì từ TPM (HR_TPM_MAINT)
+builder.Services.AddHostedService<HR_api.Tpm.TpmMaintSyncService>();
+builder.Services.AddSingleton<HR_api.Tpm.TpmBrokenNotifyService>();   // báo phiếu báo hư mới cho bảo trì đúng khu vực (mặc định tắt) — webhook + vòng hỏi thưa
+builder.Services.AddHostedService(sp => sp.GetRequiredService<HR_api.Tpm.TpmBrokenNotifyService>());   // đồng bộ danh sách công nhân bảo trì từ TPM (HR_TPM_MAINT)
 
 builder.Services.AddCors(options =>
 {

@@ -166,7 +166,8 @@ function buildRow(item, idx) {
             <div class="text-sm font-monospace">${escHtml(item.ASSIGNED_BY||'')}</div>
             <div class="text-xxs text-secondary vni-font">${assignerName}</div>
         </td>
-        <td class="px-2 text-sm text-nowrap text-secondary">${formatDate(item.ASSIGN_DATE)}</td>
+        <td class="px-2 text-sm text-nowrap text-secondary">${formatDate(item.ASSIGN_DATE)}${item.ASSIGN_NOTE && item.ASSIGN_NOTE.indexOf('HR sắp lùi') === 0
+            ? `<div><span class="badge bg-warning text-dark" style="font-size:.65rem;" title="${escHtml(item.ASSIGN_NOTE)}">Sắp lùi</span></div>` : ''}</td>
         <td class="text-center">${statusBadge(item.CONFIRM_STATUS)}</td>
         <td class="px-2 text-sm text-nowrap text-secondary">${item.CONFIRM_DATE ? formatDate(item.CONFIRM_DATE) : '<span class="text-muted">-</span>'}</td>
     </tr>`;
@@ -263,7 +264,7 @@ $('#exportBtn').on('click', async function() {
             pg++;
         } while (pg <= pgTotal);
         if (!rows.length) { showToast('Không có dữ liệu để xuất', 'warning'); return; }
-        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Nhóm Việc','Loại','Từ ngày','Đến ngày','Số ngày','Người sắp lịch','Mã người sắp','Ngày sắp lịch','Trạng thái','Ngày xác nhận','Lý do'];
+        const headers = ['STT','Mã NV','Họ Tên','Bộ Phận','Line','Nhóm Việc','Loại','Từ ngày','Đến ngày','Số ngày','Người sắp lịch','Mã người sắp','Ngày sắp lịch','Trạng thái','Ngày xác nhận','Lý do','Ghi chú'];
         let html = '<html><head><meta charset="utf-8"/></head><body><table border="1"><thead><tr>';
         html += headers.map(h=>`<th style="background:#e2e8f0;font-weight:bold">${h}</th>`).join('') + '</tr></thead><tbody>';
         rows.forEach((r,i) => {
@@ -289,6 +290,7 @@ $('#exportBtn').on('click', async function() {
                 <td>${st}</td>
                 <td>${r.CONFIRM_DATE ? formatDate(r.CONFIRM_DATE) : ''}</td>
                 <td>${escHtml(r.REASON||'')}</td>
+                <td>${escHtml(r.ASSIGN_NOTE||'')}</td>
             </tr>`;
         });
         html += '</tbody></table></body></html>';

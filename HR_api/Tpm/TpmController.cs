@@ -11,13 +11,35 @@ namespace HR_api.Tpm;
 public class TpmController : ControllerBase
 {
     private readonly TpmService _tpm;
+    private readonly TpmBrokenNotifyService _notify;
+    private readonly IConfiguration _cfg;
 
-    public TpmController(TpmService tpm)
+    public TpmController(TpmService tpm, TpmBrokenNotifyService notify, IConfiguration cfg)
     {
         _tpm = tpm;
+        _notify = notify;
+        _cfg = cfg;
     }
 
     private static readonly object Unavailable = new { success = false, code = "TPM_UNAVAILABLE", message = "Hệ thống bảo trì máy tạm thời không khả dụng, vui lòng thử lại sau." };
+
+    // POST apiHR/Tpm/notify/broken  header X-MySamho-Key  body { BrokenId }
+    // Webhook: TPM gọi ngay khi có phiếu báo hư mới → báo tức thì cho bảo trì đúng khu vực (TpmBrokenNotifyService). Không cần X-Api-Key (middleware
+    // miễn path này), tự kiểm khóa nội bộ. Trả nhanh, việc gửi chạy nền.
+    [HttpPost("notify/broken")]
+    public IActionResult NotifyBroken([FromBody] TpmBrokenCreatedBody body)
+    {
+        var expected = _cfg["Tpm:InternalKey"] ?? "";
+        var got = Request.Headers["X-MySamho-Key"].ToString();
+        if (expected.Length == 0 || !System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(got), System.Text.Encoding.UTF8.GetBytes(expected)))
+            return Unauthorized(new { success = false, message = "Unauthorized" });
+        if (body?.BrokenId is not > 0) return BadRequest(new { success = false, message = "Thiếu BrokenId" });
+
+        var id = body.BrokenId.Value;
+        _ = Task.Run(async () => { try { await _notify.NotifyBrokenAsync(id); } catch (Exception ex) { Console.WriteLine($"[TpmNotify] {ex.Message}"); } });
+        return Ok(new { success = true });
+    }
 
     // GET apiHR/Tpm/machine?empcd=...&itemCode=...
     [HttpGet("machine")]
@@ -37,7 +59,7 @@ public class TpmController : ControllerBase
         var (emp, error) = await _tpm.ResolveEmployeeAsync(body?.Empcd);
         if (emp == null) return Ok(new { success = false, message = error });
 
-        return Relay(await _tpm.CallAsync(HttpMethod.Post, "/api/mysamho/broken/report", new
+        var reportResult = await _tpm.CallAsync(HttpMethod.Post, "/api/mysamho/broken/report", new
         {
             ItemCode = body!.ItemCode,
             Description = body.Description,
@@ -47,7 +69,21 @@ public class TpmController : ControllerBase
             DeptCd = emp.DeptCd, DeptNm = VniConverter.ToUnicode(emp.DeptNm),
             LineCd = emp.LineCd, LineNm = VniConverter.ToUnicode(emp.LineNm),
             WorkCd = emp.WorkCd, WorkNm = VniConverter.ToUnicode(emp.WorkNm),
-        }));
+        });
+
+        // Báo hư từ My Samho: HR_api đã biết ngay brokenId → báo cho bảo trì khu vực luôn, không phụ thuộc việc TPM có gọi webhook hay không
+        // (TPM gọi thêm cũng không sao: TpmBrokenNotifyService chống gửi trùng bằng HR_NOTIFICATIONS).
+        if (reportResult.reached && reportResult.status == 200)
+        {
+            try
+            {
+                using var d = System.Text.Json.JsonDocument.Parse(reportResult.body);
+                if (d.RootElement.TryGetProperty("brokenId", out var idEl) && idEl.TryGetInt64(out var newId) && newId > 0)
+                    _ = Task.Run(async () => { try { await _notify.NotifyBrokenAsync(newId); } catch (Exception ex) { Console.WriteLine($"[TpmNotify] {ex.Message}"); } });
+            }
+            catch { /* body lạ → bỏ qua, lưới an toàn hỏi thưa vẫn bắt được */ }
+        }
+        return Relay(reportResult);
     }
 
     // GET apiHR/Tpm/locations?empcd=...&parentId=...   (không có parentId = cấp 1) — dựng combobox liên động chọn vị trí
@@ -146,6 +182,29 @@ public class TpmController : ControllerBase
             IssueId = body.IssueId,
             SolveGroupId = body.SolveGroupId,
             RepairNote = string.IsNullOrWhiteSpace(body.RepairNote) ? null : body.RepairNote.Trim(),
+        }));
+    }
+
+    // POST apiHR/Tpm/maintenance/transfer  body { empcd, locationId, itemCodes[] }
+    // Bảo trì chuyển vị trí hàng loạt (giống trang "Chuyển vị trí" bên TPM.Web). TPM kiểm quyền + vị trí đích + từng máy,
+    // trả kết quả theo từng mã máy (máy không tồn tại/đã đúng vị trí không chặn các máy còn lại).
+    [HttpPost("maintenance/transfer")]
+    public async Task<IActionResult> MaintTransfer([FromBody] TpmTransferBody body)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(body?.Empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        if (body!.LocationId is not > 0) return Ok(new { success = false, code = "MISSING_LOCATION", message = "Vui lòng chọn vị trí đích." });
+
+        var codes = (body.ItemCodes ?? new List<string>())
+            .Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim().ToUpperInvariant()).Distinct().ToList();
+        if (codes.Count == 0) return Ok(new { success = false, code = "MISSING_ITEM_CODE", message = "Vui lòng thêm ít nhất một máy." });
+        if (codes.Count > 50) return Ok(new { success = false, code = "TOO_MANY_ITEMS", message = "Tối đa 50 máy mỗi lần chuyển." });
+
+        return Relay(await _tpm.CallAsync(HttpMethod.Post, "/api/mysamho/maintenance/transfer", new
+        {
+            EmpCd = emp.EmpCd,
+            LocationId = body.LocationId,
+            ItemCodes = codes,
         }));
     }
 

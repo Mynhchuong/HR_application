@@ -87,9 +87,16 @@
     const kv = (k, v) => v ? `<div class="tpm-kv"><span>${k}</span><span>${esc(v)}</span></div>` : '';
     const post = (url, body) => fetch(url, { method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN}, body: JSON.stringify(body) }).then(r => r.json());
 
-    // TPM trả 401/403 = không phải bảo trì / không có quyền → báo rõ, không phải lỗi hệ thống
+    // Mã lỗi TPM: 401 MYSAMHO_NOT_MAINTENANCE (không phải/đã khóa TPM_USER), 403 MYSAMHO_MAINTENANCE_FORBIDDEN (thiếu quyền) → báo rõ, không phải lỗi hệ thống
     const NO_PERM = 'Tài khoản của bạn chưa có quyền bảo trì trên hệ thống TPM. Vui lòng liên hệ quản lý bảo trì.';
-    const errText = d => (d.code === 'UNAUTHORIZED' || d.code === 'FORBIDDEN' || /\b40[13]\b/.test(String(d.status || ''))) ? NO_PERM : (d.message || 'Thao tác thất bại.');
+    const ERR = {
+        MYSAMHO_NOT_MAINTENANCE: NO_PERM,
+        MYSAMHO_MAINTENANCE_FORBIDDEN: NO_PERM,
+        BROKEN_CONFIRM_MISMATCH: 'Mã máy không khớp với phiếu này.',
+        BROKEN_INVALID_TRANSITION: 'Phiếu đã được xử lý bởi người khác hoặc không còn ở trạng thái này. Hãy tải lại danh sách.',
+        BROKEN_NOT_FOUND: 'Không tìm thấy phiếu (có thể đã bị hủy). Hãy tải lại danh sách.'
+    };
+    const errText = d => ERR[d.code] || d.message || 'Thao tác thất bại.';
 
     let items = [], filter = 'new', issues = null, solves = null, openForm = null;
 
@@ -106,7 +113,7 @@
             const st = STATUS[i.Status] || [i.Status, '#f1f5f9', '#475569'];
             const canRecv = i.Status === 'REPORTED';
             const canRepair = i.Status === 'RECEIVED' || i.Status === 'NEEDS_PARTS';
-            const reporter = i.ReportedByNm || i.ReporterNm || i.ReportedByName || '';
+            const reporter = i.ReportedByNm || '';
             return `<div class="tpm-card" id="card${i.BrokenId}">
                 <div class="tpm-top">
                     <div><div class="tpm-code">${esc(i.ItemCode)}</div><div class="tpm-name">${esc(i.NameEn)}</div></div>
@@ -115,6 +122,7 @@
                 <div class="tpm-desc">${esc(i.Description)}</div>
                 ${kv('Vị trí', i.LocationPath)}
                 ${kv('Người báo', reporter)}
+                ${kv('Người xử lý', i.PicNm)}
                 ${kv('Báo lúc', fmt(i.ReportedAt))}
                 ${kv('Bảo trì nhận', i.ReceivedByNm ? i.ReceivedByNm + (i.ReceivedAt ? ' · ' + fmt(i.ReceivedAt) : '') : '')}
                 ${kv('Cần linh kiện', i.PartsNote)}
@@ -131,7 +139,7 @@
         try {
             const d = await (await fetch(URL_LIST + '?myAreaOnly=' + ($('tpmMyArea').checked ? 'true' : 'false'))).json();
             if (!d.success) { $('tpmList').innerHTML = `<div class="tpm-empty">${esc(errText(d))}</div>`; return; }
-            items = d.items || d.Items || []; render();
+            items = d.items || []; render();
         } catch (e) { $('tpmList').innerHTML = '<div class="tpm-empty">Lỗi kết nối, vui lòng thử lại.</div>'; }
     }
 
@@ -139,17 +147,16 @@
         try {
             const d = await (await fetch(URL_LOOK + '?kind=areas')).json();
             if (!d.success) return;
-            const a = d.items || d.Items || d.areas || d.Areas || [];
-            const names = a.map(x => x.LocationNm || x.Nm || x.Name || x.LocationName).filter(Boolean);
-            $('tpmArea').textContent = names.length ? 'Phụ trách: ' + names.join(', ') : 'Phụ trách: bảo trì chung (mọi khu vực)';
+            const names = (d.items || []).map(x => x.LocationNm).filter(Boolean);
+            $('tpmArea').textContent = (d.isGeneral || !names.length) ? 'Phụ trách: bảo trì chung (mọi khu vực)' : 'Phụ trách: ' + names.join(', ');
         } catch (e) { /* không hiện được vùng thì thôi, không ảnh hưởng danh sách */ }
     }
 
     async function ensureLookups() {
         if (issues && solves) return;
         const [a, b] = await Promise.all([fetch(URL_LOOK + '?kind=issues').then(r => r.json()), fetch(URL_LOOK + '?kind=solve-groups').then(r => r.json())]);
-        issues = a.success ? (a.items || a.Items || []) : [];
-        solves = b.success ? (b.items || b.Items || []) : [];
+        issues = a.success ? (a.items || []) : [];
+        solves = b.success ? (b.items || []) : [];
     }
     const opt = (list, idKeys, nmKeys) => list.map(x => {
         const id = idKeys.map(k => x[k]).find(v => v != null), nm = nmKeys.map(k => x[k]).find(v => v);
@@ -166,8 +173,8 @@
                 <input type="text" class="tpm-input" id="rItem" placeholder="${esc(it.ItemCode)}" autocomplete="off" autocapitalize="characters">
                 <button type="button" class="tpm-btn light" id="rScan" style="flex:0 0 auto;width:auto">Quét</button>
             </div>
-            ${issues.length ? `<label>Loại lỗi</label><select class="tpm-input" id="rIssue"><option value="">-- Không chọn --</option>${opt(issues, ['IssueId','Id','id'], ['IssueVn','NmVn','Nm','nm'])}</select>` : ''}
-            ${solves.length ? `<label>Cách xử lý</label><select class="tpm-input" id="rSolve"><option value="">-- Không chọn --</option>${opt(solves, ['SolveGroupId','Id','id'], ['SolveGroupVn','NmVn','Nm','nm'])}</select>` : ''}
+            ${issues.length ? `<label>Loại lỗi</label><select class="tpm-input" id="rIssue"><option value="">-- Không chọn --</option>${opt(issues, ['issueId'], ['issueVn','issueEn'])}</select>` : ''}
+            ${solves.length ? `<label>Cách xử lý</label><select class="tpm-input" id="rSolve"><option value="">-- Không chọn --</option>${opt(solves, ['solveGroupId'], ['solveGroupVn','solveGroupEn'])}</select>` : ''}
             <label>Ghi chú sửa</label>
             <textarea class="tpm-input" id="rNote" maxlength="250" placeholder="VD: thay dây curoa, vệ sinh..."></textarea>
             <div class="tpm-row mt-2">

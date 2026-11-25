@@ -152,6 +152,8 @@ public class LeaveAssignmentLogModel
     public string?   ASSIGNED_BY    { get; set; }
     public string?   ASSIGNER_NAME  { get; set; }
     public DateTime? ASSIGN_DATE    { get; set; }
+    /// <summary>Ghi chú đơn (HR_REQUEST.REMARK) — "HR sắp lùi: ..." khi sắp lịch cho ngày đã qua.</summary>
+    public string?   ASSIGN_NOTE    { get; set; }
 }
 
 public class LeaveAssignmentLogPagedResponse

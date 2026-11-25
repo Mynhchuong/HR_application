@@ -17,7 +17,18 @@ public class TpmService
     private readonly OracleService _db;
     private readonly IConfiguration _cfg;
     private readonly IHttpClientFactory _httpFactory;
-    private readonly string _baseUrl;
+    private readonly string _baseUrl;            // địa chỉ NỘI BỘ (Tpm:BaseUrl)
+    private readonly string _baseUrlExternal;    // địa chỉ BÊN NGOÀI (Tpm:BaseUrlExternal) — để trống = chỉ dùng nội bộ
+
+    // Giống app My Samho (2 địa chỉ nội bộ/ngoài): thử nội bộ trước, không tới được (hoặc 502/503/504) thì thử ngoài. Nhớ địa chỉ vừa chạy được
+    // 5 phút để không phải chờ nội bộ hỏng mỗi lời gọi; hết hạn thì thử lại nội bộ. ConnectTimeout ngắn (3s) để chuyển địa chỉ nhanh.
+    private static volatile int _preferred;           // 0 = nội bộ, 1 = ngoài
+    private static DateTime _preferredUntil = DateTime.MinValue;
+    private static readonly HttpClient Http = new(new SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromSeconds(3),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    }) { Timeout = Timeout.InfiniteTimeSpan };
     private readonly string _key;
     private readonly int _timeoutSec;
 
@@ -27,11 +38,12 @@ public class TpmService
         _cfg = cfg;
         _httpFactory = httpFactory;
         _baseUrl = (cfg["Tpm:BaseUrl"] ?? "").TrimEnd('/');
+        _baseUrlExternal = (cfg["Tpm:BaseUrlExternal"] ?? "").TrimEnd('/');
         _key = cfg["Tpm:InternalKey"] ?? "";
         _timeoutSec = int.TryParse(cfg["Tpm:TimeoutSec"], out var t) && t > 0 ? t : 20;
     }
 
-    public bool IsConfigured => _baseUrl.Length > 0 && _key.Length > 0;
+    public bool IsConfigured => (_baseUrl.Length > 0 || _baseUrlExternal.Length > 0) && _key.Length > 0;
 
     /// <summary>Tra nhân viên + kiểm quyền. Trả (employee, null) nếu được dùng; (null, lý do) nếu không.</summary>
     public async Task<(TpmEmployee? emp, string? error)> ResolveEmployeeAsync(string? empcd)
@@ -98,24 +110,39 @@ public class TpmService
     public async Task<(bool reached, int status, string body)> CallAsync(HttpMethod method, string path, object? payload = null)
     {
         if (!IsConfigured) return (false, 0, "");
-        try
-        {
-            var client = _httpFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(_timeoutSec);
 
-            using var req = new HttpRequestMessage(method, $"{_baseUrl}{path}");
-            req.Headers.Add("X-MySamho-Key", _key);
-            if (payload != null)
-                req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        // Danh sách địa chỉ theo thứ tự thử (bỏ địa chỉ trống); địa chỉ đang được ưu tiên đứng đầu
+        var bases = new List<(int idx, string url)>();
+        if (_baseUrl.Length > 0) bases.Add((0, _baseUrl));
+        if (_baseUrlExternal.Length > 0) bases.Add((1, _baseUrlExternal));
+        if (bases.Count > 1 && DateTime.Now < _preferredUntil && _preferred == 1) bases.Reverse();
 
-            using var resp = await client.SendAsync(req);
-            var body = await resp.Content.ReadAsStringAsync();
-            return (true, (int)resp.StatusCode, body);
-        }
-        catch (Exception ex)
+        var json = payload != null ? JsonSerializer.Serialize(payload) : null;
+        for (int i = 0; i < bases.Count; i++)
         {
-            Console.WriteLine($"[TpmService] {method} {path} error: {ex.Message}");
-            return (false, 0, "");
+            var (idx, url) = bases[i];
+            bool last = i == bases.Count - 1;
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSec));
+                using var req = new HttpRequestMessage(method, $"{url}{path}");
+                req.Headers.Add("X-MySamho-Key", _key);
+                if (json != null) req.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                using var resp = await Http.SendAsync(req, cts.Token);
+                var status = (int)resp.StatusCode;
+                if (!last && (status == 502 || status == 503 || status == 504)) continue;   // máy chủ đứng sau lỗi cổng → thử địa chỉ kia
+
+                var body = await resp.Content.ReadAsStringAsync();
+                if (bases.Count > 1) { _preferred = idx; _preferredUntil = DateTime.Now.AddMinutes(5); }
+                return (true, status, body);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TpmService] {method} {url}{path} error: {ex.Message}");
+                if (last) return (false, 0, "");
+            }
         }
+        return (false, 0, "");
     }
 }

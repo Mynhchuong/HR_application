@@ -1,0 +1,200 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Chuyển vị trí máy";
+}
+
+@section Styles {
+<style>
+    .tpm-wrap { max-width: 640px; margin: 0 auto; padding-bottom: 4rem; }
+    .tpm-card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:1rem; margin-bottom:.8rem; }
+    .tpm-hero { background:linear-gradient(135deg,#8b0000,#c00000); color:#fff; border:0; }
+    .tpm-hero h5 { margin:0; font-weight:800; }
+    .tpm-hero small { opacity:.9; }
+    .tpm-h { font-weight:800; font-size:.95rem; margin-bottom:.5rem; }
+    .tpm-btn { border:0; border-radius:12px; padding:.6rem 1rem; font-weight:700; font-size:.92rem; cursor:pointer; width:100%; }
+    .tpm-btn.primary { background:#c00000; color:#fff; }
+    .tpm-btn.light { background:#f1f5f9; color:#0f172a; border:1.5px solid #e2e8f0; }
+    .tpm-btn:disabled { opacity:.55; cursor:not-allowed; }
+    .tpm-row { display:flex; gap:.5rem; }
+    .tpm-row > * { flex:1; }
+    .tpm-input { width:100%; border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .75rem; font-size:.92rem; outline:none; background:#fff; margin-bottom:.5rem; }
+    .tpm-input:focus { border-color:#c00000; }
+    .tpm-dest { background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; border-radius:12px; padding:.5rem .75rem; font-size:.88rem; font-weight:700; }
+    .tpm-warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:.5rem .75rem; font-size:.85rem; }
+    .tpm-item { display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.5rem 0; border-bottom:1px dashed #e2e8f0; }
+    .tpm-item:last-child { border-bottom:0; }
+    .tpm-item .code { font-weight:800; }
+    .tpm-item .nm { font-size:.82rem; color:#475569; }
+    .tpm-item .loc { font-size:.78rem; color:#64748b; }
+    .tpm-x { border:0; background:#fee2e2; color:#b91c1c; border-radius:8px; width:30px; height:30px; font-weight:800; cursor:pointer; flex:0 0 auto; }
+    .tpm-msg { font-size:.85rem; margin-top:.4rem; color:#475569; }
+    .tpm-msg.err { color:#b91c1c; }
+    .tpm-res-ok { color:#166534; } .tpm-res-skip { color:#a16207; } .tpm-res-bad { color:#b91c1c; }
+</style>
+}
+
+<div class="container-fluid py-4">
+<div class="tpm-wrap">
+    @Html.AntiForgeryToken()
+
+    <div class="tpm-card tpm-hero">
+        <h5>Chuyển vị trí máy</h5>
+        <small>Chọn vị trí đích, quét nhiều máy rồi chuyển một lần.</small>
+    </div>
+
+    <div class="tpm-card">
+        <div class="tpm-h">1. Vị trí đích</div>
+        <div id="locSelects"></div>
+        <div id="destBox" class="tpm-warn">Chọn đến Line hoặc Vị trí cụ thể.</div>
+    </div>
+
+    <div class="tpm-card">
+        <div class="tpm-h">2. Các máy cần chuyển <span id="cnt" class="text-muted" style="font-weight:600"></span></div>
+        <div class="tpm-row">
+            <input type="text" class="tpm-input" id="mCode" placeholder="Mã máy (VD: MC26-00001)" autocomplete="off" autocapitalize="characters" style="margin-bottom:0">
+            <button type="button" class="tpm-btn light" id="mScan" style="flex:0 0 auto;width:auto">Quét</button>
+            <button type="button" class="tpm-btn light" id="mAdd" style="flex:0 0 auto;width:auto">Thêm</button>
+        </div>
+        <div class="tpm-msg" id="mMsg"></div>
+        <div id="mList" class="mt-2"></div>
+    </div>
+
+    <button type="button" class="tpm-btn primary" id="btnGo" disabled>Chuyển</button>
+    <div id="result" class="tpm-card mt-3 d-none"></div>
+</div>
+</div>
+
+@section Scripts {
+<script src="~/js/native-scanner.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const URL_LOCS = '@Url.Action("Locations", "Tpm")';
+    const URL_MACH = '@Url.Action("Machine", "Tpm")';
+    const URL_XFER = '@Url.Action("MaintTransfer", "Tpm")';
+    const MAX = 50, SELF = 'SELF';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const toast = (m, t) => (window.showToast ? window.showToast(m, t) : alert(m));
+    const NO_PERM = 'Tài khoản của bạn chưa có quyền bảo trì trên hệ thống TPM. Vui lòng liên hệ quản lý bảo trì.';
+    const ERR = { MYSAMHO_NOT_MAINTENANCE: NO_PERM, MYSAMHO_MAINTENANCE_FORBIDDEN: NO_PERM,
+                  MACHINE_NOT_FOUND: 'Không tìm thấy máy.', LOCATION_NOT_FOUND: 'Vị trí đích không hợp lệ.' };
+    const errText = d => ERR[d.code] || d.message || 'Thao tác thất bại.';
+
+    let destId = null, destPath = '';
+    const machines = [];   // { code, name, loc }
+
+    // ── Vị trí đích: Nhà → Group → Line → Vị trí. Line có thể vừa có Vị trí con vừa là nơi đặt máy → có "Dùng chính Line này".
+    async function fetchLocs(parentId) {
+        const d = await (await fetch(URL_LOCS + (parentId ? '?parentId=' + parentId : ''))).json();
+        if (!d.success) throw new Error(errText(d));
+        return (d.items || []).map(i => ({ id: i.Id ?? i.id, nm: i.Nm ?? i.nm, level: i.Level ?? i.level }));
+    }
+    function addSelect(items, parent) {
+        const sel = document.createElement('select');
+        sel.className = 'tpm-input';
+        sel._items = items; sel._parent = parent || null;
+        sel.innerHTML = '<option value="">-- Chọn --</option>'
+            + (parent && parent.level === 3 ? `<option value="${SELF}">Dùng chính ${esc(parent.nm)}</option>` : '')
+            + items.map(i => `<option value="${i.id}">${esc(i.nm)}</option>`).join('');
+        sel.onchange = () => onChange(sel);
+        $('locSelects').appendChild(sel);
+    }
+    function pathOf(sel) {   // Nhà / Group / Line / ... theo các ô đã chọn tới ô này
+        const names = []; 
+        for (const s of $('locSelects').children) {
+            if (s.value && s.value !== SELF) names.push(s._items.find(i => String(i.id) === s.value)?.nm);
+            if (s === sel) break;
+        }
+        return names.filter(Boolean).join(' / ');
+    }
+    function setDest(id, path) {
+        destId = id; destPath = path;
+        const box = $('destBox');
+        if (id) { box.className = 'tpm-dest'; box.textContent = 'Đích: ' + path; }
+        else { box.className = 'tpm-warn'; box.textContent = 'Chọn đến Line hoặc Vị trí cụ thể.'; }
+        refreshGo();
+    }
+    async function onChange(sel) {
+        while (sel.nextElementSibling) sel.nextElementSibling.remove();
+        setDest(null, '');
+        if (!sel.value) return;
+        if (sel.value === SELF) { setDest(sel._parent.id, pathOf(sel._parent && sel.previousElementSibling ? sel.previousElementSibling : sel)); return; }
+        const node = sel._items.find(i => String(i.id) === sel.value);
+        try {
+            const kids = await fetchLocs(sel.value);
+            if (kids.length) addSelect(kids, node);
+            else if (node.level >= 3) setDest(node.id, pathOf(sel));   // Vị trí/Line không có con = nơi đặt máy
+            else toast('Vị trí này chưa chọn được, hãy chọn cấp thấp hơn.', 'warning');
+        } catch (e) { toast(e.message, 'error'); }
+    }
+
+    // ── Danh sách máy
+    function renderList() {
+        $('cnt').textContent = machines.length ? '(' + machines.length + ')' : '';
+        $('mList').innerHTML = machines.length ? machines.map((m, i) => `<div class="tpm-item">
+            <div><div class="code">${esc(m.code)}</div><div class="nm">${esc(m.name)}</div><div class="loc">Hiện ở: ${esc(m.loc || '—')}</div></div>
+            <button type="button" class="tpm-x" data-i="${i}" title="Bỏ">×</button></div>`).join('') : '';
+        refreshGo();
+    }
+    function refreshGo() { $('btnGo').disabled = !(destId && machines.length); $('btnGo').textContent = machines.length ? `Chuyển ${machines.length} máy` : 'Chuyển'; }
+    function setMsg(t, err) { $('mMsg').textContent = t || ''; $('mMsg').className = 'tpm-msg' + (err ? ' err' : ''); }
+
+    async function addMachine(raw) {
+        const code = String(raw || '').trim().toUpperCase();
+        if (!code) return;
+        if (machines.some(m => m.code === code)) { setMsg('Máy ' + code + ' đã có trong danh sách.', true); return; }
+        if (machines.length >= MAX) { setMsg('Tối đa ' + MAX + ' máy mỗi lần.', true); return; }
+        setMsg('Đang tra cứu ' + code + '...');
+        try {
+            const d = await (await fetch(URL_MACH + '?itemCode=' + encodeURIComponent(code))).json();
+            if (!d.success) { setMsg(d.code === 'MACHINE_NOT_FOUND' ? 'Không tìm thấy máy "' + code + '".' : errText(d), true); return; }
+            const m = d.data;
+            machines.push({ code: m.ItemCode, name: m.NameEn, loc: m.LocationPath });
+            $('mCode').value = ''; setMsg(''); renderList(); $('mCode').focus();
+        } catch (e) { setMsg('Lỗi kết nối, vui lòng thử lại.', true); }
+    }
+
+    $('mAdd').onclick = () => addMachine($('mCode').value);
+    $('mCode').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addMachine(e.target.value); } });
+    $('mScan').onclick = () => {
+        if (!window.NativeScanner || !window.NativeScanner.scan({ onResult: c => addMachine(c), onCancel: () => {}, onError: () => toast('Không mở được camera, hãy nhập mã máy.', 'warning') }))
+            toast('Thiết bị chưa hỗ trợ quét, hãy nhập mã máy.', 'warning');
+    };
+    $('mList').addEventListener('click', e => { const b = e.target.closest('.tpm-x'); if (b) { machines.splice(parseInt(b.dataset.i, 10), 1); renderList(); } });
+
+    // ── Chuyển
+    $('btnGo').onclick = async () => {
+        if (!destId || !machines.length) return;
+        if (!confirm(`Chuyển ${machines.length} máy tới "${destPath}"?`)) return;
+        const btn = $('btnGo'); btn.disabled = true; btn.textContent = 'Đang chuyển...';
+        try {
+            const r = await fetch(URL_XFER, { method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN},
+                body: JSON.stringify({ locationId: destId, itemCodes: machines.map(m => m.code) }) });
+            const d = await r.json();
+            if (!d.success) { toast(errText(d), 'error'); refreshGo(); return; }
+            const rows = d.results || d.items || d.Results || [];
+            const res = $('result'); res.classList.remove('d-none');
+            let ok = 0;
+            res.innerHTML = '<div class="tpm-h">Kết quả</div>' + rows.map(x => {
+                const code = x.ItemCode ?? x.itemCode, success = x.Success ?? x.success, skipped = x.Skipped ?? x.skipped, msg = x.Message ?? x.message ?? '';
+                if (success && !skipped) ok++;
+                const cls = !success ? 'tpm-res-bad' : (skipped ? 'tpm-res-skip' : 'tpm-res-ok');
+                const txt = !success ? (msg || 'Thất bại') : (skipped ? (msg || 'Đã ở đúng vị trí này') : 'Đã chuyển');
+                return `<div class="tpm-item"><div><div class="code">${esc(code)}</div><div class="nm ${cls}">${esc(txt)}</div></div></div>`;
+            }).join('');
+            toast(ok ? `Đã chuyển ${ok} máy` : 'Không có máy nào được chuyển', ok ? 'success' : 'warning');
+            machines.length = 0; renderList();   // danh sách đã xử lý xong, làm đợt mới
+            res.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (e) { toast('Lỗi kết nối', 'error'); refreshGo(); }
+    };
+
+    // Mở từ trang Tra cứu máy: ?code=MC26-00001 → thêm sẵn máy đó vào danh sách
+    const preCode = new URLSearchParams(location.search).get('code');
+    if (preCode) addMachine(preCode);
+
+    fetchLocs(null).then(items => addSelect(items)).catch(e => { $('destBox').className = 'tpm-warn'; $('destBox').textContent = e.message; });
+})();
+</script>
+}

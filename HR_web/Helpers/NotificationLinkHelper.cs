@@ -38,6 +38,10 @@ public static class NotificationLinkHelper
         if (a.StartsWith("inquiry/"))
             return "~/EmployeeInquiry/Chat?id=" + Uri.EscapeDataString(a["inquiry/".Length..]);
 
+        // Phiếu báo hư mới cho bảo trì (HR_api Tpm/TpmBrokenNotifyService) → trang xử lý phiếu
+        if (a.StartsWith("TPM_BROKEN:"))
+            return "~/Tpm/Maintenance";
+
         // Đào tạo (HR_api TrainingNotificationWorker.LinkFor)
         if (a.StartsWith("TRAINING_CLASS_REGISTER/"))
             return "~/Training/ClassRegister/" + Uri.EscapeDataString(a["TRAINING_CLASS_REGISTER/".Length..]);

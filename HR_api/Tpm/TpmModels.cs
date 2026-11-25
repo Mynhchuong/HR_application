@@ -37,6 +37,20 @@ public class TpmReceiveBody
     public long? BrokenId { get; set; }
 }
 
+/// <summary>Body POST apiHR/Tpm/maintenance/transfer — bảo trì chuyển vị trí hàng loạt: 1 vị trí đích + danh sách mã máy.</summary>
+public class TpmTransferBody
+{
+    public string? Empcd { get; set; }
+    public long? LocationId { get; set; }
+    public List<string>? ItemCodes { get; set; }
+}
+
+/// <summary>Body webhook TPM -> HR_api khi có phiếu báo hư mới.</summary>
+public class TpmBrokenCreatedBody
+{
+    public long? BrokenId { get; set; }
+}
+
 /// <summary>Người dùng đã tra từ DB HR (ECM100 + EAM410 + HR_USERS) để gửi sang TPM.</summary>
 public class TpmEmployee
 {

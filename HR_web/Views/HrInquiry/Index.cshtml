@@ -636,6 +636,7 @@ async function loadTopics() {
             setSelectValue('fSort',     st.fSort);
             setSelectValue('fDraft',    st.fDraft);
             setSelectValue('fSearch',   st.fSearch);
+            if (st.fAssigned === 'UNASSIGNED' && st.fStatus === 'OPEN') autoOpenStatus = true;   // khôi phục tab Chưa phụ trách: rời tab thì trả lại "Mọi trạng thái"
             startPage = st.page || 1;
         }
     }

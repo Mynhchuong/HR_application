@@ -291,6 +291,10 @@
         if (!started) startLive();   // máy cũ/đã báo lỗi 1 lần trước đó -> rơi về quét trong trang luôn
     }
 
+    // Mở từ trang Tra cứu máy: ?code=MC26-00001 → tra cứu luôn
+    const preCode = new URLSearchParams(location.search).get('code');
+    if (preCode) lookup(preCode);
+
     $('btnLive').onclick = () => startNative();
     window.addEventListener('pagehide', stopLive);
     $('btnManual').onclick = () => lookup($('tpmManual').value);

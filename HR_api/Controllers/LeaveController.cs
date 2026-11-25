@@ -2213,7 +2213,7 @@ END;";
                                L.LEAVE_TYPE, L.FROM_DATE, L.TO_DATE, L.TOTAL_DAYS, L.REASON,
                                R.STATUS, L.CONFIRM_STATUS, L.CONFIRM_DATE,
                                R.CREATED_BY ASSIGNED_BY, ASN.CNAME ASSIGNER_NAME,
-                               R.CREATED_DATE ASSIGN_DATE
+                               R.CREATED_DATE ASSIGN_DATE, R.REMARK ASSIGN_NOTE
                         {fromSql}{whereSql}
                     ) T
                 ) WHERE RN > :R_MIN AND RN <= :R_MAX";
@@ -2244,6 +2244,7 @@ END;";
                 ASSIGNED_BY    = r["ASSIGNED_BY"]?.ToString(),
                 ASSIGNER_NAME = r["ASSIGNER_NAME"]?.ToString(),
                 ASSIGN_DATE   = r["ASSIGN_DATE"]  == DBNull.Value ? null : Convert.ToDateTime(r["ASSIGN_DATE"]),
+                ASSIGN_NOTE   = r["ASSIGN_NOTE"]  == DBNull.Value ? null : r["ASSIGN_NOTE"]?.ToString(),
             }, dataParams.ToArray());
 
             return Ok(new
@@ -3903,8 +3904,9 @@ END;";
             if (fromDate > toDate)
                 return Ok(new { success = false, message = "Ngày kết thúc phải sau ngày bắt đầu" });
 
-            if (fromDate.Date < DateTime.Today)
-                return Ok(new { success = false, message = "Chỉ được sắp lịch từ ngày hôm nay trở đi" });
+            // 2026-11-25: HR/Admin được SẮP LÙI (ngày nghỉ đã qua) — nhân sự có thể sắp thiếu nhân viên. Không chặn nữa nhưng GHI LOG: mỗi đơn
+            // sắp lùi mang HR_REQUEST.REMARK "HR sắp lùi: ..." (hiện ở trang Log sắp lịch). Quyền Admin/HR kiểm ở dưới như cũ.
+            bool backdated = fromDate.Date < DateTime.Today;
 
             if (model.TOTAL_DAYS <= 0)
                 return Ok(new { success = false, message = "Số ngày nghỉ không hợp lệ" });
@@ -4046,11 +4048,14 @@ END;";
 
                     await _oracleService.ExecuteNonQueryAsync(@"
                         INSERT INTO HRMS.HR_REQUEST
-                            (REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE)
-                        VALUES ('LEAVE', :EMPCD, :EMP_NAME, SYSDATE, 'ASSIGNED', :CREATED_BY, SYSDATE)",
+                            (REQUEST_TYPE, EMPCD, EMP_NAME, REQUEST_DATE, STATUS, CREATED_BY, CREATED_DATE, REMARK)
+                        VALUES ('LEAVE', :EMPCD, :EMP_NAME, SYSDATE, 'ASSIGNED', :CREATED_BY, SYSDATE, :REMARK)",
                         new OracleParameter("EMPCD",      targetEmpcd),
                         new OracleParameter("EMP_NAME",   empName),
-                        new OracleParameter("CREATED_BY", model.ASSIGNER_EMPCD));
+                        new OracleParameter("CREATED_BY", model.ASSIGNER_EMPCD),
+                        new OracleParameter("REMARK",     (object?)(backdated
+                            ? $"HR sắp lùi: nghỉ từ {fromDate:dd/MM/yyyy}, sắp lúc {DateTime.Now:dd/MM/yyyy HH:mm} bởi {model.ASSIGNER_EMPCD}"
+                            : null) ?? DBNull.Value));
 
                     var reqIds = await _oracleService.ExecuteQueryAsync(@"
                         SELECT REQUEST_ID FROM (
@@ -4208,8 +4213,9 @@ END;";
             return Ok(new
             {
                 success        = successCt > 0,
-                message        = $"Đã sắp lịch cho {successCt}/{model.TARGET_EMPCDS.Count} nhân viên",
+                message        = $"Đã sắp lịch cho {successCt}/{model.TARGET_EMPCDS.Count} nhân viên" + (backdated && successCt > 0 ? " (sắp lùi — đã ghi log)" : ""),
                 total_inserted = successCt,
+                backdated,
                 warnings,
                 results
             });

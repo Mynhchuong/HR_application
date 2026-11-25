@@ -30,6 +30,22 @@ public class TpmRepairBody
     public string? RepairNote { get; set; }
 }
 
+/// <summary>Body PUT apiHR/Tpm/maintenance/needs-parts — bảo trì báo "Cần linh kiện" (kèm ghi chú linh kiện), giống PDA.</summary>
+public class TpmNeedsPartsBody
+{
+    public string? Empcd { get; set; }
+    public long? BrokenId { get; set; }
+    public string? PartsNote { get; set; }
+}
+
+/// <summary>Body PUT apiHR/Tpm/maintenance/cancel — bảo trì hủy phiếu báo hư (báo nhầm/trùng), giống PDA.</summary>
+public class TpmCancelBody
+{
+    public string? Empcd { get; set; }
+    public long? BrokenId { get; set; }
+    public string? Reason { get; set; }
+}
+
 /// <summary>Body PUT apiHR/Tpm/maintenance/receive — bảo trì "Nhận" phiếu.</summary>
 public class TpmReceiveBody
 {

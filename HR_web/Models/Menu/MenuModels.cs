@@ -150,7 +150,7 @@ public class ChangeMealViewModel
 
 public class ChangeMealRequest
 {
-    public string  MealType  { get; set; } = string.Empty; // MAN, NHE, CHAY, CHAY_TRUONG, NUOC_TRUONG
+    public string  MealType  { get; set; } = string.Empty; // MAN, NHE, CHAY, BANH, CHAY_TRUONG, NHE_TRUONG, MAN_TRUONG
     public string? TypeMeal  { get; set; } = "LUNCH";      // LUNCH or OT
     public string? FromDate  { get; set; }
     public string? ToDate    { get; set; }

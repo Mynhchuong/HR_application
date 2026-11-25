@@ -47,6 +47,12 @@ public class TpmService
     public async Task<string> MaintReceiveRawAsync(object payload)
         => await ReadAsync(await _api.PutAsync_Raw("Tpm/maintenance/receive", payload));
 
+    public async Task<string> MaintNeedsPartsRawAsync(object payload)
+        => await ReadAsync(await _api.PutAsync_Raw("Tpm/maintenance/needs-parts", payload));
+
+    public async Task<string> MaintCancelRawAsync(object payload)
+        => await ReadAsync(await _api.PutAsync_Raw("Tpm/maintenance/cancel", payload));
+
     public async Task<string> MaintRepairRawAsync(object payload)
         => await ReadAsync(await _api.PutAsync_Raw("Tpm/maintenance/repair", payload));
 

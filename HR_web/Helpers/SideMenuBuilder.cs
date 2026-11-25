@@ -79,11 +79,13 @@ public static class SideMenuBuilder
                 VisibleWhen = () => user.TpmMaintenance || (!isExpat && !isCanteen && !user.HasRole("HR") && !user.TpmBlocked),
                 Children = new List<SideMenuItem>
                 {
-                    new SideMenuItem { Title = "Tra cứu máy", Url = "~/Tpm/MachineInfo", Icon = "manage_search", VisibleWhen = () => user.TpmMaintenance },
-                    new SideMenuItem { Title = "Xử lý phiếu báo hư", Url = "~/Tpm/Maintenance", Icon = "build_circle", VisibleWhen = () => user.TpmMaintenance },
-                    new SideMenuItem { Title = "Chuyển vị trí máy", Url = "~/Tpm/Transfer", Icon = "move_location", VisibleWhen = () => user.TpmMaintenance },
-                    new SideMenuItem { Title = "Báo máy sản xuất", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner" },
-                    new SideMenuItem { Title = "Lịch sử báo máy",  Url = "~/Tpm/History", Icon = "history"         },
+                    // Bảo trì dùng 3 mục như PDA: quét máy (xem + xử lý phiếu của máy), danh sách báo hư, chuyển vị trí.
+                    new SideMenuItem { Title = "Quét máy",           Url = "~/Tpm/MachineInfo",  Icon = "qr_code_scanner", VisibleWhen = () => user.TpmMaintenance },
+                    new SideMenuItem { Title = "Danh sách báo hư",   Url = "~/Tpm/Maintenance",  Icon = "build_circle",    VisibleWhen = () => user.TpmMaintenance },
+                    new SideMenuItem { Title = "Chuyển vị trí máy",  Url = "~/Tpm/Transfer",     Icon = "move_location",   VisibleWhen = () => user.TpmMaintenance },
+                    // Công nhân sản xuất: báo máy hư + xem lịch sử (bảo trì không cần — xử lý phiếu ở các mục trên)
+                    new SideMenuItem { Title = "Báo máy sản xuất", Url = "~/Tpm/Scan",    Icon = "qr_code_scanner", VisibleWhen = () => !user.TpmMaintenance },
+                    new SideMenuItem { Title = "Lịch sử báo máy",  Url = "~/Tpm/History", Icon = "history",         VisibleWhen = () => !user.TpmMaintenance },
                 }
             },
 

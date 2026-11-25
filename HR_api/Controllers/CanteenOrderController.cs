@@ -167,9 +167,10 @@ public class CanteenOrderController : ControllerBase
                         message = "Bạn thuộc danh sách nhận Bánh cố định, không thể tự đổi sang món khác. Liên hệ HR nếu cần thay đổi." });
             }
 
-            // Đăng ký dài hạn (NHE_TRUONG / CHAY_TRUONG): set luôn cả LUNCH + OT
+            // Đăng ký dài hạn (NHE_TRUONG / CHAY_TRUONG / MAN_TRUONG): set luôn cả LUNCH + OT
             // để NV có OT khỏi vào đổi tay món tăng ca
-            var isLongTerm = req.MealType == "NHE_TRUONG" || req.MealType == "CHAY_TRUONG";
+            // MAN_TRUONG (2026-11-25): đưa cả khoảng ngày về Mặn — vd đang Chay/Nhẹ trường muốn ăn Mặn lại
+            var isLongTerm = req.MealType == "NHE_TRUONG" || req.MealType == "CHAY_TRUONG" || req.MealType == "MAN_TRUONG";
             var mealCats   = isLongTerm ? new[] { "LUNCH", "OT" } : new[] { mealCat };
 
             var changer    = string.IsNullOrEmpty(req.LoginUser) ? "HR" : req.LoginUser;
@@ -449,6 +450,7 @@ public class CanteenOrderController : ControllerBase
             {
                 "NHE_TRUONG"  => "Món nhẹ",
                 "CHAY_TRUONG" => "Chay trường",
+                "MAN_TRUONG"  => "Mặn trường",
                 "NHE"         => "Nhẹ",
                 "CHAY"        => "Chay",
                 "BANH"        => "Bánh",

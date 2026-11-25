@@ -113,6 +113,25 @@ public class TpmController : HR_web.Controllers.BaseController
         return Content(await _svc.MaintReceiveRawAsync(new { empcd = Empcd, brokenId = req.BrokenId }), "application/json");
     }
 
+    // POST /Tpm/MaintNeedsParts { brokenId, partsNote }
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> MaintNeedsParts([FromBody] MaintNeedsPartsBody req)
+    {
+        if (string.IsNullOrEmpty(Empcd) || !AllowedMaint) return Json(new { success = false, message = "Không có quyền" });
+        if (req?.BrokenId is not > 0) return Json(new { success = false, message = "Thiếu mã phiếu" });
+        if (string.IsNullOrWhiteSpace(req.PartsNote)) return Json(new { success = false, message = "Vui lòng ghi rõ cần linh kiện gì" });
+        return Content(await _svc.MaintNeedsPartsRawAsync(new { empcd = Empcd, brokenId = req.BrokenId, partsNote = req.PartsNote.Trim() }), "application/json");
+    }
+
+    // POST /Tpm/MaintCancel { brokenId, reason? }
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> MaintCancel([FromBody] MaintCancelBody req)
+    {
+        if (string.IsNullOrEmpty(Empcd) || !AllowedMaint) return Json(new { success = false, message = "Không có quyền" });
+        if (req?.BrokenId is not > 0) return Json(new { success = false, message = "Thiếu mã phiếu" });
+        return Content(await _svc.MaintCancelRawAsync(new { empcd = Empcd, brokenId = req.BrokenId, reason = req.Reason?.Trim() }), "application/json");
+    }
+
     // POST /Tpm/MaintRepair { brokenId, itemCode, issueId?, solveGroupId?, repairNote? }
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> MaintRepair([FromBody] MaintRepairBody req)
@@ -160,6 +179,9 @@ public class TpmController : HR_web.Controllers.BaseController
         public long? LocationId { get; set; }
         public List<string>? ItemCodes { get; set; }
     }
+
+    public class MaintNeedsPartsBody { public long? BrokenId { get; set; } public string? PartsNote { get; set; } }
+    public class MaintCancelBody { public long? BrokenId { get; set; } public string? Reason { get; set; } }
 
     public class MaintReceiveBody { public long? BrokenId { get; set; } }
 

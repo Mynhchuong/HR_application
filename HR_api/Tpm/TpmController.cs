@@ -167,6 +167,29 @@ public class TpmController : ControllerBase
         return Relay(await _tpm.CallAsync(HttpMethod.Put, $"/api/mysamho/maintenance/broken/{body.BrokenId}/receive", new { EmpCd = emp.EmpCd }));
     }
 
+    // PUT apiHR/Tpm/maintenance/needs-parts  body { empcd, brokenId, partsNote }   (RECEIVED → NEEDS_PARTS, như PDA)
+    [HttpPut("maintenance/needs-parts")]
+    public async Task<IActionResult> MaintNeedsParts([FromBody] TpmNeedsPartsBody body)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(body?.Empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        if (body!.BrokenId is not > 0) return Ok(new { success = false, message = "Thiếu mã phiếu." });
+        if (string.IsNullOrWhiteSpace(body.PartsNote)) return Ok(new { success = false, code = "MISSING_PARTS_NOTE", message = "Vui lòng ghi rõ cần linh kiện gì." });
+        return Relay(await _tpm.CallAsync(HttpMethod.Put, $"/api/mysamho/maintenance/broken/{body.BrokenId}/needs-parts",
+            new { EmpCd = emp.EmpCd, PartsNote = body.PartsNote.Trim() }));
+    }
+
+    // PUT apiHR/Tpm/maintenance/cancel  body { empcd, brokenId, reason? }   (hủy phiếu báo nhầm/trùng, như PDA)
+    [HttpPut("maintenance/cancel")]
+    public async Task<IActionResult> MaintCancel([FromBody] TpmCancelBody body)
+    {
+        var (emp, error) = await _tpm.ResolveMaintenanceAsync(body?.Empcd);
+        if (emp == null) return Ok(new { success = false, message = error });
+        if (body!.BrokenId is not > 0) return Ok(new { success = false, message = "Thiếu mã phiếu." });
+        return Relay(await _tpm.CallAsync(HttpMethod.Put, $"/api/mysamho/maintenance/broken/{body.BrokenId}/cancel",
+            new { EmpCd = emp.EmpCd, Reason = string.IsNullOrWhiteSpace(body.Reason) ? null : body.Reason.Trim() }));
+    }
+
     // PUT apiHR/Tpm/maintenance/repair  body { empcd, brokenId, itemCode, issueId?, solveGroupId?, repairNote? }
     [HttpPut("maintenance/repair")]
     public async Task<IActionResult> MaintRepair([FromBody] TpmRepairBody body)

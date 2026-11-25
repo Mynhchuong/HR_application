@@ -1,6 +1,6 @@
 @{
     Layout = "_Layout";
-    ViewData["Title"] = "Tra cứu máy";
+    ViewData["Title"] = "Quét máy";
 }
 
 @section Styles {
@@ -10,13 +10,13 @@
     .tpm-hero { background:linear-gradient(135deg,#8b0000,#c00000); color:#fff; border:0; }
     .tpm-hero h5 { margin:0; font-weight:800; }
     .tpm-hero small { opacity:.9; }
-    .tpm-btn { border:0; border-radius:12px; padding:.6rem 1rem; font-weight:700; font-size:.92rem; cursor:pointer; width:100%; text-align:center; text-decoration:none; display:block; }
+    .tpm-btn { border:0; border-radius:12px; padding:.65rem 1rem; font-weight:700; font-size:.92rem; cursor:pointer; width:100%; text-align:center; text-decoration:none; display:block; }
     .tpm-btn.primary { background:#c00000; color:#fff; }
     .tpm-btn.light { background:#f1f5f9; color:#0f172a; border:1.5px solid #e2e8f0; }
     .tpm-btn:disabled { opacity:.55; cursor:not-allowed; }
     .tpm-row { display:flex; gap:.5rem; }
     .tpm-row > * { flex:1; }
-    .tpm-input { width:100%; border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .75rem; font-size:.92rem; outline:none; background:#fff; margin-bottom:.4rem; }
+    .tpm-input { width:100%; border:1.5px solid #e2e8f0; border-radius:12px; padding:.55rem .75rem; font-size:.92rem; outline:none; background:#fff; }
     .tpm-input:focus { border-color:#c00000; }
     .tpm-msg { font-size:.85rem; margin-top:.5rem; color:#475569; }
     .tpm-msg.err { color:#b91c1c; }
@@ -27,10 +27,8 @@
     .tpm-kv span:first-child { color:#64748b; flex:0 0 auto; }
     .tpm-kv span:last-child { text-align:right; font-weight:600; overflow-wrap:anywhere; }
     .tpm-badge { display:inline-block; padding:.15rem .6rem; border-radius:999px; font-size:.75rem; font-weight:700; white-space:nowrap; }
-    .tpm-notice { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:.6rem .8rem; font-size:.88rem; margin-bottom:.6rem; }
-    .tpm-form label { font-weight:700; font-size:.85rem; margin:.4rem 0 .2rem; display:block; }
-    textarea.tpm-input { resize:vertical; min-height:70px; }
-    .tpm-acts { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-top:.6rem; }
+    .tpm-notice { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; padding:.6rem .8rem; font-size:.88rem; }
+    .tpm-desc { background:#f8fafc; border-radius:10px; padding:.5rem .7rem; font-size:.88rem; margin:.5rem 0; white-space:pre-wrap; overflow-wrap:anywhere; }
 </style>
 }
 
@@ -39,13 +37,13 @@
     @Html.AntiForgeryToken()
 
     <div class="tpm-card tpm-hero">
-        <h5>Tra cứu máy</h5>
-        <small>Quét hoặc nhập mã máy: xem thông tin, xử lý phiếu báo hư, chuyển vị trí.</small>
+        <h5>Quét máy</h5>
+        <small>Quét hoặc nhập mã máy để xem thông tin và xử lý báo hư.</small>
     </div>
 
     <div class="tpm-card">
         <div class="tpm-row">
-            <input type="text" class="tpm-input" id="mCode" placeholder="Mã máy (VD: MC26-00001)" autocomplete="off" autocapitalize="characters" style="margin-bottom:0">
+            <input type="text" class="tpm-input" id="mCode" placeholder="Mã máy (VD: MC26-00001)" autocomplete="off" autocapitalize="characters">
             <button type="button" class="tpm-btn light" id="mScan" style="flex:0 0 auto;width:auto">Quét</button>
             <button type="button" class="tpm-btn primary" id="mFind" style="flex:0 0 auto;width:auto">Tra cứu</button>
         </div>
@@ -58,130 +56,74 @@
 
 @section Scripts {
 <script src="~/js/native-scanner.js" asp-append-version="true"></script>
+<script src="~/js/tpm-maint.js" asp-append-version="true"></script>
 <script>
 (function () {
-    const TOKEN = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const TM = window.TpmMaint, esc = TM.esc, toast = TM.toast;
     const URL_MACH = '@Url.Action("Machine", "Tpm")';
-    const URL_LOOK = '@Url.Action("MaintLookup", "Tpm")';
-    const URL_RECV = '@Url.Action("MaintReceive", "Tpm")';
-    const URL_REPA = '@Url.Action("MaintRepair", "Tpm")';
+    const URL_LIST = '@Url.Action("MaintBroken", "Tpm")';
     const URL_XFER = '@Url.Action("Transfer", "Tpm")';
-    const URL_SCAN = '@Url.Action("Scan", "Tpm")';
-
-    const STATUS = {
-        REPORTED:    ['Chờ nhận',      '#fff7ed', '#9a3412'],
-        RECEIVED:    ['Đã nhận',       '#eff6ff', '#1d4ed8'],
-        NEEDS_PARTS: ['Chờ linh kiện', '#fefce8', '#a16207']
-    };
     const $ = id => document.getElementById(id);
-    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const toast = (m, t) => (window.showToast ? window.showToast(m, t) : alert(m));
     const fmtD = iso => { if (!iso) return ''; const d = new Date(iso); const p = n => String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()}`; };
     const fmtDT = iso => { if (!iso) return ''; const d = new Date(iso); const p = n => String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
-    const NO_PERM = 'Tài khoản của bạn chưa có quyền bảo trì trên hệ thống TPM. Vui lòng liên hệ quản lý bảo trì.';
-    const ERR = { MYSAMHO_NOT_MAINTENANCE: NO_PERM, MYSAMHO_MAINTENANCE_FORBIDDEN: NO_PERM, MACHINE_NOT_FOUND: 'Không tìm thấy máy.',
-                  BROKEN_CONFIRM_MISMATCH: 'Mã máy không khớp với phiếu này.',
-                  BROKEN_INVALID_TRANSITION: 'Phiếu đã được xử lý bởi người khác hoặc không còn ở trạng thái này. Hãy tra cứu lại.',
-                  BROKEN_NOT_FOUND: 'Không tìm thấy phiếu (có thể đã bị hủy).' };
-    const errText = d => ERR[d.code] || d.message || 'Thao tác thất bại.';
-    const post = (url, body) => fetch(url, { method:'POST', headers:{'Content-Type':'application/json','RequestVerificationToken':TOKEN}, body: JSON.stringify(body) }).then(r => r.json());
-    const setMsg = (t, err) => { $('msg').textContent = t || ''; $('msg').className = 'tpm-msg' + (err ? ' err' : ''); };
     const kv = (k, v) => v ? `<div class="tpm-kv"><span>${k}</span><span>${esc(v)}</span></div>` : '';
+    const setMsg = (t, err) => { $('msg').textContent = t || ''; $('msg').className = 'tpm-msg' + (err ? ' err' : ''); };
+    let curCode = '';
 
-    let cur = null, issues = null, solves = null;
+    TM.init({
+        token: document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',
+        urls: { recv: '@Url.Action("MaintReceive", "Tpm")', repair: '@Url.Action("MaintRepair", "Tpm")',
+                parts: '@Url.Action("MaintNeedsParts", "Tpm")', cancel: '@Url.Action("MaintCancel", "Tpm")' },
+        onChanged: () => lookup(curCode)
+    });
+    TM.bind($('result'));
 
     async function lookup(raw) {
         const code = String(raw || '').trim().toUpperCase();
         if (!code) { setMsg('Vui lòng nhập mã máy.', true); return; }
-        $('mCode').value = code; setMsg('Đang tra cứu ' + code + '...'); $('result').innerHTML = '';
+        curCode = code; $('mCode').value = code; setMsg('Đang tra cứu ' + code + '...'); $('result').innerHTML = '';
         try {
             const d = await (await fetch(URL_MACH + '?itemCode=' + encodeURIComponent(code))).json();
-            if (!d.success) { setMsg(errText(d), true); return; }
-            setMsg(''); cur = d.data; render();
+            if (!d.success) { setMsg(TM.errText(d), true); return; }
+            setMsg('');
+            const m = d.data;
+            // Phiếu đang mở của máy: lấy bản đầy đủ (mô tả, người báo, ghi chú linh kiện) từ danh sách
+            let ticket = m.OpenBroken ? Object.assign({}, m.OpenBroken) : null;
+            if (ticket) {
+                try {
+                    const l = await (await fetch(URL_LIST + '?myAreaOnly=false')).json();
+                    const full = (l.items || []).find(x => x.BrokenId === ticket.BrokenId);
+                    if (full) ticket = full;
+                } catch (e) { }
+            }
+            render(m, ticket);
         } catch (e) { setMsg('Lỗi kết nối, vui lòng thử lại.', true); }
     }
 
-    function render() {
-        const m = cur, o = m.OpenBroken;
-        let ticket = '';
-        if (o) {
-            const st = STATUS[o.Status] || [o.Status, '#f1f5f9', '#475569'];
-            const canRecv = o.Status === 'REPORTED', canRepair = o.Status === 'RECEIVED' || o.Status === 'NEEDS_PARTS';
-            ticket = `<div class="tpm-card" id="ticket">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <b>Phiếu báo hư đang mở</b>
-                    <span class="tpm-badge" style="background:${st[1]};color:${st[2]}">${esc(st[0])}</span>
-                </div>
-                ${kv('Báo lúc', fmtDT(o.ReportedAt))}
-                ${canRecv ? '<button type="button" class="tpm-btn primary mt-2" id="btnRecv">Nhận phiếu</button>' : ''}
-                ${canRepair ? '<button type="button" class="tpm-btn primary mt-2" id="btnRepair">Sửa xong</button>' : ''}
-                <div id="repairForm"></div>
+    function render(m, t) {
+        let ticketHtml = '';
+        if (t) {
+            ticketHtml = `<div class="tpm-card">
+                <div class="d-flex justify-content-between align-items-center mb-1"><b>Phiếu báo hư đang mở</b>${TM.badge(t.Status)}</div>
+                ${t.Description ? `<div class="tpm-desc">${esc(t.Description)}</div>` : ''}
+                ${kv('Người báo', t.ReportedByNm)}
+                ${kv('Báo lúc', fmtDT(t.ReportedAt))}
+                ${kv('Người nhận', t.ReceivedByNm)}
+                ${TM.actionsHtml(t, m.ItemCode)}
             </div>`;
-        } else {
-            ticket = `<div class="tpm-card"><div class="tpm-notice mb-0">Máy này hiện không có phiếu báo hư đang mở.</div></div>`;
         }
         $('result').innerHTML = `<div class="tpm-card">
                 <div class="tpm-code">${esc(m.ItemCode)}</div>
                 <div class="tpm-name mb-2">${esc(m.NameEn)}</div>
-                ${kv('Trạng thái', m.StatusNmVn || m.StatusCd)}
-                ${kv('Vị trí', m.LocationPath || 'Chưa gán vị trí')}
                 ${kv('Mã tài sản', m.FaCode)}
                 ${kv('Quy cách', m.Specification)}
-                ${kv('Số serial', m.SerialNo)}
-                ${kv('Ngày sản xuất', fmtD(m.MfgDate))}
-                ${kv('Ngày đưa vào dùng', fmtD(m.UseDate))}
+                ${kv('Vị trí', m.LocationPath || 'Chưa gán vị trí')}
+                ${kv('Trạng thái', m.StatusNmVn || m.StatusCd)}
                 ${kv('Xuất xứ', m.MadeByNm)}
                 ${kv('Nhà cung cấp', m.VendorNm)}
-                <div class="tpm-acts">
-                    <a class="tpm-btn light" href="${URL_XFER}?code=${encodeURIComponent(m.ItemCode)}">Chuyển vị trí</a>
-                    <a class="tpm-btn light" href="${URL_SCAN}?code=${encodeURIComponent(m.ItemCode)}">${o ? 'Báo vị trí sai' : 'Báo hư / vị trí sai'}</a>
-                </div>
-            </div>` + ticket;
-        $('btnRecv')?.addEventListener('click', receive);
-        $('btnRepair')?.addEventListener('click', showRepair);
+                <a class="tpm-btn light mt-2" href="${URL_XFER}?code=${encodeURIComponent(m.ItemCode)}">Chuyển vị trí máy này</a>
+            </div>` + ticketHtml;
         $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    async function receive() {
-        if (!confirm('Nhận phiếu này để xử lý?')) return;
-        const b = $('btnRecv'); b.disabled = true;
-        try {
-            const d = await post(URL_RECV, { brokenId: cur.OpenBroken.BrokenId });
-            if (!d.success) { b.disabled = false; toast(errText(d), 'error'); return; }
-            toast('Đã nhận phiếu', 'success'); lookup(cur.ItemCode);
-        } catch (e) { b.disabled = false; toast('Lỗi kết nối', 'error'); }
-    }
-
-    const opt = (list, idKey, nmKeys) => list.map(x => `<option value="${esc(x[idKey])}">${esc(nmKeys.map(k => x[k]).find(v => v))}</option>`).join('');
-    async function showRepair() {
-        if (!issues || !solves) {
-            const [a, b] = await Promise.all([fetch(URL_LOOK + '?kind=issues').then(r => r.json()), fetch(URL_LOOK + '?kind=solve-groups').then(r => r.json())]);
-            issues = a.success ? (a.items || []) : []; solves = b.success ? (b.items || []) : [];
-        }
-        $('btnRepair').style.display = 'none';
-        // Máy đã quét ở trên rồi nên không bắt quét lại mã (như PDA) — mã máy gửi thẳng theo phiếu
-        $('repairForm').innerHTML = `<div class="tpm-form mt-2">
-            ${issues.length ? `<label>Loại lỗi</label><select class="tpm-input" id="rIssue"><option value="">-- Không chọn --</option>${opt(issues, 'issueId', ['issueVn','issueEn'])}</select>` : ''}
-            ${solves.length ? `<label>Cách xử lý</label><select class="tpm-input" id="rSolve"><option value="">-- Không chọn --</option>${opt(solves, 'solveGroupId', ['solveGroupVn','solveGroupEn'])}</select>` : ''}
-            <label>Ghi chú sửa</label>
-            <textarea class="tpm-input" id="rNote" maxlength="250" placeholder="VD: thay dây curoa, vệ sinh..."></textarea>
-            <div class="tpm-row mt-2">
-                <button type="button" class="tpm-btn light" id="rCancel">Hủy</button>
-                <button type="button" class="tpm-btn primary" id="rSend">Xác nhận sửa xong</button>
-            </div></div>`;
-        $('rCancel').onclick = () => { $('repairForm').innerHTML = ''; $('btnRepair').style.display = ''; };
-        $('rSend').onclick = repair;
-    }
-
-    async function repair() {
-        if (!confirm('Xác nhận máy ' + cur.ItemCode + ' đã sửa xong?')) return;
-        const b = $('rSend'); b.disabled = true;
-        const num = id => { const v = $(id)?.value; return v ? parseInt(v, 10) : null; };
-        try {
-            const d = await post(URL_REPA, { brokenId: cur.OpenBroken.BrokenId, itemCode: cur.ItemCode, issueId: num('rIssue'), solveGroupId: num('rSolve'), repairNote: ($('rNote').value || '').trim() || null });
-            if (!d.success) { b.disabled = false; toast(errText(d), 'error'); return; }
-            toast('Đã ghi nhận sửa xong', 'success'); lookup(cur.ItemCode);
-        } catch (e) { b.disabled = false; toast('Lỗi kết nối', 'error'); }
     }
 
     $('mFind').onclick = () => lookup($('mCode').value);

@@ -85,6 +85,9 @@
     .cm-special-btn.nhe { border-color: #0ea5e9; color: #0ea5e9; }
     .cm-special-btn.active { background: #a855f7; color: white; }
     .cm-special-btn.nhe.active { background: #0ea5e9; color: white; }
+    .cm-special-btn.man { border-color: #dc2626; color: #dc2626; }
+    .cm-special-btn.man.active { background: #dc2626; color: white; }
+    .cm-special-btn .ic3d { width: 1.6em; height: 1.6em; }
     .cm-special-btn:active { opacity: .75; transform: scale(.97); }
 
     /* Date range section */
@@ -95,6 +98,9 @@
     }
     .cm-date-section.nhe-mode {
         background: #f0f9ff; border-color: #bae6fd;
+    }
+    .cm-date-section.man-mode {
+        background: #fef2f2; border-color: #fecaca;
     }
     .cm-date-section.show { display: block; }
     .cm-date-row { display: flex; gap: .5rem; margin-bottom: .6rem; }
@@ -214,6 +220,7 @@
                     <img src="@Url.Content("~/assets/img/icons/chaytruong.png")" style="height:2rem;vertical-align:middle;margin-right:.35rem;" alt="" />Chay trường
                 </button>
                 <button class="cm-special-btn nhe" id="btnNheTruong" onclick="toggleSpecial('NHE_TRUONG')">@Html.Icon3D("meal-light") Món nhẹ</button>
+                <button class="cm-special-btn man" id="btnManTruong" onclick="toggleSpecial('MAN_TRUONG')">@Html.Icon3D("meal-main") Mặn trường</button>
             </div>
 
             <div class="cm-date-section" id="dateSection">
@@ -583,20 +590,22 @@ function toggleSpecial(type) {
     const ds   = document.getElementById('dateSection');
     const btnC = document.getElementById('btnChayTruong');
     const btnN = document.getElementById('btnNheTruong');
+    const btnM = document.getElementById('btnManTruong');
 
     if (selectedSpecial === type) {
         selectedSpecial = '';
-        ds.classList.remove('show', 'nhe-mode');
-        btnC.classList.remove('active');
-        btnN.classList.remove('active');
+        ds.classList.remove('show', 'nhe-mode', 'man-mode');
+        [btnC, btnN, btnM].forEach(b => b.classList.remove('active'));
         return;
     }
 
     selectedSpecial = type;
     btnC.classList.toggle('active', type === 'CHAY_TRUONG');
     btnN.classList.toggle('active', type === 'NHE_TRUONG');
+    btnM.classList.toggle('active', type === 'MAN_TRUONG');
     ds.classList.add('show');
     ds.classList.toggle('nhe-mode', type === 'NHE_TRUONG');
+    ds.classList.toggle('man-mode', type === 'MAN_TRUONG');
 
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = ymd(tomorrow);
@@ -609,7 +618,8 @@ function submitSpecial() {
     if (!from || !to) { window.showToast('Vui lòng chọn đủ ngày bắt đầu và kết thúc', 'warning'); return; }
     if (from > to)    { window.showToast('Ngày bắt đầu không được sau ngày kết thúc', 'warning'); return; }
 
-    const label = selectedSpecial === 'CHAY_TRUONG' ? 'Chay trường' : 'Món nhẹ';
+    const label = { CHAY_TRUONG: 'Chay trường', NHE_TRUONG: 'Món nhẹ', MAN_TRUONG: 'Mặn trường' }[selectedSpecial] || '';
+    if (!label) { window.showToast('Vui lòng chọn loại đăng ký', 'warning'); return; }
     window.showConfirm(
         `Xác nhận đăng ký ${label} từ ${from} đến ${to}?`,
         () => _doFetch({ mealType: selectedSpecial, fromDate: from, toDate: to }),
